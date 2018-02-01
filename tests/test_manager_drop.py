@@ -96,7 +96,7 @@ class TestCascades(TemporaryCacheMixin):
 
     def test_drop_network_1(self):
         """When a network gets dropped, drop all of the edges if they don't appear in other networks"""
-        self.manager.drop_network(self.g1)
+        self.manager.drop_network_by_id(self.g1.id)
 
         self.assertEqual(3, self.manager.count_nodes())
         self.assertEqual(1, self.manager.count_edges())
@@ -105,7 +105,7 @@ class TestCascades(TemporaryCacheMixin):
 
     def test_drop_network_2(self):
         """When a network gets dropped, drop all of the edges if they don't appear in other networks"""
-        self.manager.drop_network(self.g2)
+        self.manager.drop_network_by_id(self.g2.id)
 
         self.assertEqual(3, self.manager.count_nodes())
         self.assertEqual(3, self.manager.count_edges())

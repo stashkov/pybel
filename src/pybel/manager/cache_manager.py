@@ -24,7 +24,7 @@ from .exc import EdgeAddError
 from .lookup_manager import LookupManager
 from .models import (
     Annotation, AnnotationEntry, Author, Citation, Edge, Evidence, Modification, Namespace,
-    NamespaceEntry, NamespaceEntryEquivalence, Network, Node, Property,
+    NamespaceEntry, NamespaceEntryEquivalence, Network, Node, Property, network_edge,
 )
 from .query_manager import QueryManager
 from .utils import extract_shared_optional, extract_shared_required, parse_owl, update_insert_values
@@ -836,28 +836,20 @@ class NetworkManager(NamespaceManager, AnnotationManager):
         """
         return self.session.query(exists().where(and_(Network.name == name, Network.version == version))).scalar()
 
-    @staticmethod
-    def iterate_singleton_edges_from_network(network):
-        """Gets all edges that only belong to the given network
+    def _drop_nse_q(self, network_id):
 
-        :type network: Network
-        :rtype: iter[Edge]
-        """
-        return (  # TODO implement with nested SQLAlchemy query for better speed
-            edge
-            for edge in network.edges
-            if edge.networks.count() == 1
-        )
+        target_network_edges = self.session.\
+            query(network_edge.c.edge_id).\
+            filter(network_edge.c.network_id == network_id).all()
 
-    def drop_network(self, network):
-        """Drops a network, while also cleaning up any edges that are no longer part of any network.
+        edge_ids = self.session. \
+            query(network_edge.c.edge_id). \
+            group_by(network_edge.c.edge_id).\
+            filter(network_edge.c.edge_id.in_(target_network_edges)).\
+            filter(network_edge.c.network_id != network_id). \
+            having(func.count(network_edge.c.network_id) == 1).all()
 
-        :type network: Network
-        """
-        for edge in self.iterate_singleton_edges_from_network(network):
-            self.session.delete(edge)
-
-        self.session.delete(network)
+        self.session.query(Edge).filter(Edge.id.in_([x for x, in edge_ids])).delete()
         self.session.commit()
 
     def drop_network_by_id(self, network_id):
@@ -865,14 +857,15 @@ class NetworkManager(NamespaceManager, AnnotationManager):
 
         :param int network_id: The network's database identifier
         """
-        network = self.session.query(Network).get(network_id)
-        self.drop_network(network)
+        self._drop_nse_q(network_id)
+        self.session.query(Network).filter(Network.id == network_id).delete()
+        self.session.commit()
 
     def drop_networks(self):
         """Drops all networks"""
         for network in self.session.query(Network).all():
             self.session.delete(network)
-            self.session.commit()
+        self.session.commit()
 
     def get_network_versions(self, name):
         """Returns all of the versions of a network with the given name
