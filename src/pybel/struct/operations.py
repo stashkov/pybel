@@ -185,6 +185,7 @@ def union(networks, use_hash=True):
     :param bool use_hash: If true, uses a hash join algorithm. Else, uses an exhaustive search, which takes much longer.
     :return: A merged network
     :rtype: BELGraph
+    :raises: ValueError
 
     Example usage:
 

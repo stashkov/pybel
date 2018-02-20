@@ -13,6 +13,7 @@ from .operations import left_full_join, left_node_intersection_join, left_outer_
 from ..canonicalize import edge_to_bel, node_to_bel
 from ..constants import *
 from ..dsl import activity
+from ..dsl.nodes import BaseEntity
 from ..tokens import node_to_tuple
 from ..utils import get_version, hash_edge
 
@@ -681,6 +682,24 @@ class BELGraph(networkx.MultiDiGraph):
         :type description: str
         """
         self.node[node][DESCRIPTION] = description
+
+    def __contains__(self, n):
+        """Return True if n is a node, False otherwise. Use the expression: 'n in G'.
+
+        :param tuple or BaseEntity n:
+        :rtype: bool
+        :raises: TypeError
+        """
+        if n is None:
+            return False
+
+        if isinstance(n, tuple):
+            return super(BELGraph, self).__contains__(n)
+
+        if isinstance(n, BaseEntity):
+            return super(BELGraph, self).__contains__(n.as_tuple())
+
+        raise TypeError('Can not check node type: {} - {}'.format(n.__class__.__name__, n))
 
     def __add__(self, other):
         """Creates a deep copy of this graph and full joins another graph with it using
