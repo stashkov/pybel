@@ -13,7 +13,7 @@ from pybel.constants import *
 from pybel.dsl import (
     activity, complex_abundance, composite_abundance, degradation, entity, fragment, fusion_range, gene, gene_fusion,
     gmod, hgvs, missing_fusion_range, named_complex_abundance, pmod, protein, protein_fusion, reaction, secretion,
-    translocation,
+    translocation, protein_deletion
 )
 from pybel.dsl.namespaces import chebi, hgnc
 from pybel.dsl.nodes import BaseEntity
@@ -824,7 +824,7 @@ class TestReconstituteNodeTuples(TemporaryCacheMixin):
 
     @mock_bel_resources
     def test_multiple_variants(self, mock):
-        node = gene(namespace='HGNC', name='AKT1', variants=[hgvs('p.Phe508del'), hgvs('p.Phe509del')])
+        node = gene(namespace='HGNC', name='AKT1', variants=[protein_deletion('Phe', 508), protein_deletion('Phe', 509)])
         namespaces = {'HGNC': ['AKT1']}
         self.help_reconstitute(node, namespaces, 2, 1)
 

@@ -146,8 +146,8 @@ class TestGetGraphProperties(unittest.TestCase):
         self.graph = BELGraph()
 
     def test_get_qualified_edge(self):
-        test_source = self.graph.add_node_from_data(protein(namespace='TEST', name='YFG'))
-        test_target = self.graph.add_node_from_data(protein(namespace='TEST', name='YFG2'))
+        test_source = protein(namespace='TEST', name='YFG')
+        test_target = protein(namespace='TEST', name='YFG2')
         test_key = n()
         test_evidence = n()
         test_pmid = n()
@@ -191,8 +191,8 @@ class TestGetGraphProperties(unittest.TestCase):
         self.assertTrue(annotations['Confidence']['Very High'])
 
     def test_get_unqualified_edge(self):
-        test_source = self.graph.add_node_from_data(protein(namespace='TEST', name='YFG'))
-        test_target = self.graph.add_node_from_data(protein(namespace='TEST', name='YFG2'))
+        test_source = protein(namespace='TEST', name='YFG')
+        test_target = protein(namespace='TEST', name='YFG2')
 
         self.graph.add_unqualified_edge(
             test_source,

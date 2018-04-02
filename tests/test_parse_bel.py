@@ -7,13 +7,13 @@ from pybel import BELGraph
 from pybel.constants import *
 from pybel.dsl import cell_surface_expression, entity, secretion, translocation
 from pybel.dsl.nodes import (
-    BaseAbundance, abundance, bioprocess, complex_abundance, composite_abundance, fusion_range, gene, gene_fusion, gmod,
-    hgvs, mirna, named_complex_abundance, pathology, pmod, protein, protein_fusion, protein_substitution, reaction, fragment, hgvs_unspecified, hgvs_reference, protein_deletion, rna, rna_fusion
+    BaseAbundance, abundance, bioprocess, complex_abundance, composite_abundance, fragment, fusion_range, gene,
+    gene_fusion, gmod, hgvs, hgvs_reference, hgvs_unspecified, mirna, named_complex_abundance, pathology, pmod, protein,
+    protein_deletion, protein_fusion, protein_substitution, reaction, rna, rna_fusion,
 )
 from pybel.parser import BelParser
 from pybel.parser.exc import MalformedTranslocationWarning
 from pybel.parser.parse_bel import modifier_po_to_dict
-from pybel.tokens import node_to_tuple
 
 from tests.constants import TestTokenParserBase, assertHasEdge, assertHasNode, update_provenance
 
@@ -238,17 +238,14 @@ class TestGene(TestTokenParserBase):
         }
         self.assertEqual(expected_result, result.asDict())
 
-        expected_node = gene('HGNC', 'AKT1',
-                             variants=[hgvs('c.1521_1523delCTT'), hgvs(TEST_GENE_VARIANT), hgvs(TEST_PROTEIN_VARIANT)])
-        self.assertEqual('g(HGNC:AKT1, var(c.1521_1523delCTT), var(c.308G>A), var(p.Phe508del))',
-                         expected_node.as_bel())
-        self.assertHasNode(expected_node, function=GENE)
-
-        parent = expected_node.get_parent()
-        self.assertIsNotNone(parent)
-        self.assertHasNode(parent, **parent)
-
-        self.assertHasEdge(parent, expected_node, relation=HAS_VARIANT)
+        node = gene('HGNC', 'AKT1', variants=[
+            hgvs('c.1521_1523delCTT'),
+            hgvs(TEST_GENE_VARIANT),
+            hgvs(TEST_PROTEIN_VARIANT)
+        ])
+        self.assertEqual('g(HGNC:AKT1, var(c.1521_1523delCTT), var(c.308G>A), var(p.Phe508del))', node.as_bel())
+        self.assertHasNode(node, **node)
+        self.help_test_parent_in_graph(node)
 
     def test_gene_fusion_1(self):
         self.maxDiff = None
@@ -634,7 +631,7 @@ class TestProtein(TestTokenParserBase):
         self.assertEqual(expected_dict, result.asDict())
 
         expected_node = protein('HGNC', 'AKT1')
-        self.assertEqual(statement, expected_node.as_bel())
+        self.assertEqual('p(HGNC:AKT1)', expected_node.as_bel())
         self.assertHasNode(expected_node)
 
     def test_multiVariant(self):
@@ -759,7 +756,7 @@ class TestProtein(TestTokenParserBase):
         statement = 'p(HGNC:AKT1, trunc(40))'
         result = self.parser.protein.parseString(statement)
 
-        node = protein('HGNC', 'AKT1', variants=hgvs('p.40*')) #FIXME replace with truncation?
+        node = protein('HGNC', 'AKT1', variants=hgvs('p.40*'))  # FIXME replace with truncation?
         self.assertEqual('p(HGNC:AKT1, var(p.40*))', node.as_bel())
         self.assertHasNode(node, **{FUNCTION: PROTEIN})
         self.help_test_parent_in_graph(node)
@@ -771,7 +768,7 @@ class TestProtein(TestTokenParserBase):
         expected_result = [PROTEIN, 'HGNC', 'AKT1', [HGVS, 'p.Cys40*']]
         self.assertEqual(expected_result, result.asList())
 
-        node = protein('HGNC', 'AKT1',variants=hgvs('p.Cys40*'))
+        node = protein('HGNC', 'AKT1', variants=hgvs('p.Cys40*'))
         self.assertEqual(statement, node.as_bel())
         self.assertHasNode(node, **{FUNCTION: PROTEIN})
         self.help_test_parent_in_graph(node)
@@ -968,7 +965,6 @@ class TestRna(TestTokenParserBase):
         self.assertEqual(statement, expected_node.as_bel())
         self.assertHasNode(expected_node)
 
-
     def test_214e(self):
         """Test multiple variants"""
         statement = 'r(HGNC:AKT1, var(p.Phe508del), var(c.1521_1523delCTT))'
@@ -985,7 +981,7 @@ class TestRna(TestTokenParserBase):
         }
         self.assertEqual(expected_result, result.asDict())
 
-        node = rna('HGNC', 'AKT1', variants= [hgvs('c.1521_1523delCTT'), hgvs(TEST_PROTEIN_VARIANT)])
+        node = rna('HGNC', 'AKT1', variants=[hgvs('c.1521_1523delCTT'), hgvs(TEST_PROTEIN_VARIANT)])
         self.assertEqual('r(HGNC:AKT1, var(c.1521_1523delCTT), var(p.Phe508del))', node.as_bel())
         self.assertHasNode(node, **node)
         self.help_test_parent_in_graph(node)
@@ -1015,7 +1011,7 @@ class TestRna(TestTokenParserBase):
         }
         self.assertEqual(expected_dict, result.asDict())
 
-        expected_node  = rna_fusion(
+        expected_node = rna_fusion(
             partner_5p=rna('HGNC', 'TMPRSS2'),
             partner_3p=rna('HGNC', 'ERG'),
             range_5p=fusion_range('r', 1, 79),
@@ -1504,7 +1500,7 @@ class TestTranslocationPermissive(unittest.TestCase):
         sub = abundance('ADO', 'Abeta_42')
         self.assertHasNode(sub)
 
-        obj = abundance( 'CHEBI', 'calcium(2+)')
+        obj = abundance('CHEBI', 'calcium(2+)')
         self.assertHasNode(obj)
 
         expected_annotations = {
@@ -1715,7 +1711,7 @@ class TestTransformation(TestTokenParserBase):
 
         superoxide_node = abundance('CHEBI', 'superoxide')
         hydrogen_peroxide = abundance('CHEBI', 'hydrogen peroxide')
-        oxygen_node = abundance( 'CHEBI', 'oxygen')
+        oxygen_node = abundance('CHEBI', 'oxygen')
 
         expected_node = reaction(reactants=superoxide_node, products=[hydrogen_peroxide, oxygen_node])
         self.assertEqual(statement, expected_node.as_bel())

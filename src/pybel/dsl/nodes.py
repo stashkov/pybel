@@ -306,6 +306,7 @@ class Variant(dict):
 
         :return:
         """
+        raise NotImplementedError
 
     @abc.abstractmethod
     def as_bel(self):
@@ -528,11 +529,17 @@ class fragment(Variant):
         """
         super(fragment, self).__init__(FRAGMENT)
 
-        if start and stop:
+        if start is None and stop is None:
+            self[FRAGMENT_MISSING] = '?'
+        elif start and stop:
             self[FRAGMENT_START] = start
             self[FRAGMENT_STOP] = stop
-        else:
-            self[FRAGMENT_MISSING] = '?'
+        elif start:
+            self[FRAGMENT_START] = start
+            self[FRAGMENT_STOP] = '?'
+        else:  # just stop
+            self[FRAGMENT_START] = '?'
+            self[FRAGMENT_STOP] = stop
 
         if description:
             self[FRAGMENT_DESCRIPTION] = description

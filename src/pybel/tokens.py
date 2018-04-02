@@ -118,18 +118,23 @@ def _variant_dict_to_dsl(d):
     raise ValueError
 
 
+def sort_variants(variants):
+    return sorted([variant for variant in variants if variant], key=Variant.as_tuple)
+
+
 def variant_po_to_dict_helper(tokens):
     """Converts a PyParsing data dictionary to a PyBEL variant data dictionary
 
     :type tokens: ParseResult
     :rtype: list[pybel.dsl.nodes.Variant]
     """
-    rv = [
+    variants = [
         _variant_dict_to_dsl(safe_get_dict(variant))
         for variant in tokens[VARIANTS]
+        # TODO check variant[KIND] ?
     ]
 
-    return sorted(rv, key=Variant.as_tuple)
+    return sort_variants(variants)
 
 
 def variant_po_to_dict(tokens):

@@ -18,9 +18,10 @@ from ..dsl import (
     hgvs, mirna, missing_fusion_range, named_complex_abundance, pathology, pmod, protein, protein_fusion, reaction, rna,
     rna_fusion,
 )
+
 from ..dsl.nodes import Variant
 from ..io.gpickle import from_bytes, to_bytes
-from ..tokens import sort_abundances
+from ..tokens import sort_abundances, sort_variants
 
 __all__ = [
     'Base',
@@ -586,10 +587,10 @@ class Node(Base):
             return result
 
         if self.is_variant:
-            variants = sorted([
+            variants = sort_variants(
                 modification.to_variant()
                 for modification in self.modifications
-            ], key=Variant.as_tuple)
+            )
 
             if self.type == PROTEIN:
                 result = self.namespace_entry.as_protein(variants=variants)
