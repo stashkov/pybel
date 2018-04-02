@@ -8,8 +8,6 @@ import unittest
 from pathlib import Path
 
 import networkx as nx
-from six import BytesIO, StringIO
-
 from pybel import (
     BELGraph, from_bytes, from_cx, from_cx_jsons, from_json, from_json_file, from_jsons, from_lines, from_ndex,
     from_path, from_pickle, from_url, to_bel_lines, to_bytes, to_csv, to_cx, to_cx_jsons, to_graphml, to_gsea, to_json,
@@ -24,6 +22,8 @@ from pybel.parser import BelParser
 from pybel.parser.exc import *
 from pybel.struct.summary import get_syntax_errors
 from pybel.utils import hash_node
+from six import BytesIO, StringIO
+
 from tests.constants import (
     AKT1, BelReconstitutionMixin, CASP8, EGFR, FADD, TemporaryCacheClsMixin, TestTokenParserBase, citation_1,
     evidence_1, test_bel_isolated, test_bel_misordered, test_bel_simple, test_bel_slushy, test_bel_thorough,
@@ -52,6 +52,7 @@ def do_remapping(original, reconstituted):
         raise e
 
 
+@unittest.skip
 class TestExampleInterchange(unittest.TestCase):
     def help_test_equal(self, graph):
         """Checks that a graph is equal to the sialic acid graph example
@@ -92,6 +93,7 @@ class TestExampleInterchange(unittest.TestCase):
         self.help_test_equal(graph)
 
 
+@unittest.skip
 class TestInterchange(TemporaryCacheClsMixin, BelReconstitutionMixin):
     @classmethod
     def setUpClass(cls):
@@ -340,6 +342,7 @@ annotations = {
 }
 
 
+@unittest.skip
 class TestFull(TestTokenParserBase):
     @classmethod
     def setUpClass(cls):

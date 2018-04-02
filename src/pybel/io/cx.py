@@ -20,7 +20,7 @@ import json
 import logging
 import time
 from collections import defaultdict
-
+from ..dsl.nodes import BaseEntity
 from ..canonicalize import node_to_bel
 from ..constants import *
 from ..struct import BELGraph
@@ -81,8 +81,16 @@ def calculate_canonical_cx_identifier(graph, node):
     :return: Appropriate identifier for the node for CX indexing
     :rtype: str
     """
-    data = graph.node[node]
+    if isinstance(node, BaseEntity):
+        data = node
+    else:
+        raise RuntimeError('stop using tuples!')
+        data = graph.node[node]
 
+    return _help_calculate_canonical_cx_identifier(data)
+
+
+def _help_calculate_canonical_cx_identifier(data):
     if data[FUNCTION] == COMPLEX and NAMESPACE in data:
         return '{}:{}'.format(data[NAMESPACE], data[NAME])
 
@@ -528,7 +536,7 @@ def from_cx(cx):
         edge_data_pp[eid][OBJECT] = expand_dict(data)
 
     for eid in edge_relation:
-        if eid in edge_annotations: # FIXME stick this in edge_data.items() iteration
+        if eid in edge_annotations:  # FIXME stick this in edge_data.items() iteration
             edge_data_pp[eid][ANNOTATIONS] = {
                 key: {v: True for v in values}
                 for key, values in edge_annotations[eid].items()

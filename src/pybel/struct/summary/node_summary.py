@@ -17,10 +17,14 @@ __all__ = [
 
 
 def _function_iterator(graph):
-    """Iterates over the functions in a graph"""
+    """Iterates over the functions in a graph
+
+    :param pybel.BELGraph graph:
+    :rtype: iter[str]
+    """
     return (
-        data[FUNCTION]
-        for data in graph.iter_data()
+        node.function
+        for node in graph
     )
 
 
@@ -45,10 +49,15 @@ def count_functions(graph):
 
 
 def _iterate_namespaces(graph):
+    """Iterates over the namespaces in nodes in the graph
+
+    :param pybel.BELGraph graph:
+    :rtype: iter[str]
+    """
     return (
-        data[NAMESPACE]
-        for data in graph.iter_data()
-        if NAMESPACE in data
+        node[NAMESPACE]
+        for node in graph
+        if NAMESPACE in node
     )
 
 
@@ -84,13 +93,13 @@ def get_unused_namespaces(graph):
 
 def _identifier_filtered_iterator(graph):
     """Iterates over names in the given namespace"""
-    for data in graph.iter_data():
-        if NAMESPACE in data:
-            yield data[NAMESPACE], data[NAME]
+    for node in graph:
+        if NAMESPACE in node and NAME in node:
+            yield node[NAMESPACE], node[NAME]
 
-        elif FUSION in data:
-            yield data[FUSION][PARTNER_3P][NAMESPACE], data[FUSION][PARTNER_3P][NAME]
-            yield data[FUSION][PARTNER_5P][NAMESPACE], data[FUSION][PARTNER_5P][NAME]
+        elif FUSION in node:
+            yield node[FUSION][PARTNER_3P][NAMESPACE], node[FUSION][PARTNER_3P][NAME]
+            yield node[FUSION][PARTNER_5P][NAMESPACE], node[FUSION][PARTNER_5P][NAME]
 
 
 def _namespace_filtered_iterator(graph, namespace):

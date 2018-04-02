@@ -19,11 +19,16 @@ __all__ = [
     'composite_abundance',
     'bioprocess',
     'pathology',
+    'named_complex_abundance',
     'reaction',
     'pmod',
     'gmod',
     'hgvs',
+    'hgvs_reference',
+    'hgvs_unspecified',
+    'gene_substitution',
     'protein_substitution',
+    'protein_deletion',
     'fragment',
     'fusion_range',
     'missing_fusion_range',
@@ -43,6 +48,22 @@ class BaseEntity(dict):
         """
         super(BaseEntity, self).__init__(**{FUNCTION: func})
 
+    @property
+    def function(self):
+        """Returns the function
+
+        :rtype: str
+        """
+        return self[FUNCTION]
+
+    @property
+    def short_bel_function(self):
+        """Returns the short version of the function, appropriate for serialization to BEL
+
+        :rtype: str
+        """
+        return rev_abundance_labels[self.function]
+
     @abc.abstractmethod
     def as_tuple(self):
         """Returns this entity as a canonical tuple
@@ -54,7 +75,7 @@ class BaseEntity(dict):
     def as_bel(self):
         """Returns this entity as canonical BEL
 
-        :rtype: tuple
+        :rtype: str
         """
 
     def as_sha512(self):
@@ -92,23 +113,39 @@ class BaseAbundance(BaseEntity):
         self.update(entity(namespace=namespace, name=name, identifier=identifier))
 
     @property
-    def function(self):
-        return self[FUNCTION]
+    def namespace(self):
+        """Returns the namespace
+
+        :rtype: str
+        """
+        return self[NAMESPACE]
 
     @property
     def name(self):
+        """Returns the name, if defined
+
+        :rtype: Optional[str]
+        """
         return self.get(NAME)
 
     @property
     def identifier(self):
+        """Returns the identifier, if defined
+
+        :rtype: Optional[str]
+        """
         return self.get(IDENTIFIER)
+
+    @property
+    def _prioritized_name(self):
+        return self.identifier if self.identifier else self.name
 
     def as_tuple(self):
         """Returns this node as a PyBEL node tuple
 
         :rtype: tuple
         """
-        return self[FUNCTION], self[NAMESPACE], self[NAME]
+        return self.function, self.namespace, self._prioritized_name
 
     def as_bel(self):
         """Returns this node as BEL
@@ -116,9 +153,9 @@ class BaseAbundance(BaseEntity):
         :rtype: str
         """
         return "{}({}:{})".format(
-            rev_abundance_labels[self.function],
-            self[NAMESPACE],
-            ensure_quotes(self.identifier if self.identifier else self.name)
+            self.short_bel_function,
+            self.namespace,
+            ensure_quotes(self._prioritized_name)
         )
 
 
@@ -179,26 +216,75 @@ class CentralDogma(BaseAbundance):
         :param str namespace: The name of the database used to identify this entity
         :param str name: The database's preferred name or label for this entity
         :param str identifier: The database's identifier for this entity
-        :param list[Variant] variants: A list of variants
+        :param Optional[Variant or list[Variant]] variants: An optional variant or list of variants
         """
         super(CentralDogma, self).__init__(func, namespace, name=name, identifier=identifier)
-        if variants:
+
+        if isinstance(variants, Variant):
+            self[VARIANTS] = [variants]
+        elif variants:
             self[VARIANTS] = variants
 
-    def as_bel(self):
-        variants = self.get(VARIANTS)
+    @property
+    def variants(self):
+        """Returns the variants, if they exist
 
-        if not variants:
+        :rtype: Optional[list[Variant]]
+        """
+        return self.get(VARIANTS)
+
+    def _variants_as_tuple(self):
+        """Return the variants as a tuple
+
+        :rtype: tuple
+        """
+        if self.variants is None:
+            raise ValueError
+
+        return tuple(sorted(
+            variant.as_tuple()
+            for variant in self.variants)
+        )
+
+    def as_tuple(self):
+        """Converts to a tuple"""
+        t = super(CentralDogma, self).as_tuple()
+
+        if self.variants is not None:
+            return t + self._variants_as_tuple()
+
+        return t
+
+    def as_bel(self):
+        """Converts to BEL
+
+        :rtype: str
+        """
+        if not self.variants:
             return super(CentralDogma, self).as_bel()
 
-        variants_canon = sorted(map(str, variants))
+        variants_canon = sorted(map(str, self.variants))
 
         return "{}({}:{}, {})".format(
-            rev_abundance_labels[self[FUNCTION]],
-            self[NAMESPACE],
+            self.short_bel_function,
+            self.namespace,
             ensure_quotes(self[NAME]),
             ', '.join(variants_canon)
         )
+
+    def get_parent(self):
+        """Gets the parent, or none if it's already a reference node
+
+        :rtype: Optional[CentralDogma]
+
+        >>> ab42 = protein(name='APP', namespace='HGNC', variants=[fragment(start=672, stop=713)])
+        >>> app = ab42.get_parent()
+        >>> assert 'p(HGNC:APP)' == app.as_bel()
+        """
+        if VARIANTS not in self:
+            return
+
+        return self.__class__(namespace=self.namespace, name=self.name, identifier=self.identifier)
 
 
 @six.add_metaclass(abc.ABCMeta)
@@ -213,6 +299,13 @@ class Variant(dict):
 
     def __str__(self):
         return self.as_bel()
+
+    @abc.abstractmethod
+    def as_tuple(self):
+        """Returns this variant as a tuple
+
+        :return:
+        """
 
     @abc.abstractmethod
     def as_bel(self):
@@ -262,7 +355,20 @@ class pmod(Variant):
         if position:
             self[PMOD_POSITION] = position
 
+    def as_tuple(self):
+        """Convert a pmod to tuple
+
+        :rtype: tuple
+        """
+        identifier = self[IDENTIFIER][NAMESPACE], self[IDENTIFIER][NAME]
+        params = tuple(self[key] for key in PMOD_ORDER[2:] if key in self)
+        return (PMOD,) + (identifier,) + params
+
     def as_bel(self):
+        """Convert a pmod to BEL
+
+        :rtype: str
+        """
         return 'pmod({}{})'.format(
             str(self[IDENTIFIER]),
             ''.join(', {}'.format(self[x]) for x in PMOD_ORDER[2:] if x in self)
@@ -297,7 +403,20 @@ class gmod(Variant):
             identifier=identifier
         )
 
+    def as_tuple(self):
+        """Converts a gmod to a tuple
+
+        :rtype: tuple
+        """
+        identifier = self[IDENTIFIER][NAMESPACE], self[IDENTIFIER][NAME]
+        params = tuple(self[key] for key in GMOD_ORDER[2:] if key in self)
+        return (GMOD,) + (identifier,) + params
+
     def as_bel(self):
+        """Returns the gene modification as BEL
+
+        :rtype: str
+        """
         return 'gmod({})'.format(str(self[IDENTIFIER]))
 
 
@@ -316,8 +435,48 @@ class hgvs(Variant):
 
         self[IDENTIFIER] = variant
 
+    def as_tuple(self):
+        """Converts the HGVS variant to a tuple
+
+        :rtype: tuple
+        """
+        return self[KIND], self[IDENTIFIER]
+
     def as_bel(self):
+        """Returns the HGVS variant as BEL
+
+        :rtype: str
+        """
         return 'var({})'.format(self[IDENTIFIER])
+
+
+class hgvs_reference(hgvs):
+    """Represents the "reference" variant in HGVS"""
+
+    def __init__(self):
+        super(hgvs_reference, self).__init__('=')
+
+
+class hgvs_unspecified(hgvs):
+    """Represents an unspecified variant in HGVS"""
+
+    def __init__(self):
+        super(hgvs_unspecified, self).__init__('?')
+
+
+class gene_substitution(hgvs):
+    """Builds a HGVS variant dictionary for the given protein substitution"""
+
+    def __init__(self, from_nucleotide, position, to_nucleotide):
+        """
+        :param str from_nucleotide: The old nucleotide letter (ACTG) (capitalized)
+        :param int position: The position of the residue
+        :param str to_nucleotide: The new nucleotide letter (ACTG) (capitalized)
+
+        Example:
+        >>> gene(namespace='HGNC', name='APOE', variants=[gene_substitution('C', 526, 'T')])
+        """
+        super(gene_substitution, self).__init__('c.{}{}>{}'.format(position, from_nucleotide, to_nucleotide))
 
 
 class protein_substitution(hgvs):
@@ -334,6 +493,21 @@ class protein_substitution(hgvs):
         >>> protein(namespace='HGNC', name='AKT1', variants=[protein_substitution('Ala', 127, 'Tyr')])
         """
         super(protein_substitution, self).__init__('p.{}{}{}'.format(from_aa, position, to_aa))
+
+
+class protein_deletion(hgvs):
+    """Builds a HGVS variant dictionary for the given protein deletion"""
+
+    def __init__(self, aa, position):
+        """
+        :param str aa: The 3-letter amino acid code of the original residue
+        :param int position: The position of the residue
+
+        Example:
+
+        >>> protein(namespace='HGNC', name='AKT1', variants=[protein_deletion('Ala', 127)])
+        """
+        super(protein_deletion, self).__init__('p.{}{}del'.format(aa, position))
 
 
 class fragment(Variant):
@@ -363,7 +537,26 @@ class fragment(Variant):
         if description:
             self[FRAGMENT_DESCRIPTION] = description
 
+    def as_tuple(self):
+        """Converts the fragment to a tuple
+
+        :rtype: tuple
+        """
+        if FRAGMENT_MISSING in self:
+            result = FRAGMENT, '?'
+        else:
+            result = FRAGMENT, (self[FRAGMENT_START], self[FRAGMENT_STOP])
+
+        if FRAGMENT_DESCRIPTION in self:
+            return result + (self[FRAGMENT_DESCRIPTION],)
+
+        return result
+
     def as_bel(self):
+        """Returns the fragment as BEL
+
+        :rtype: str
+        """
         if FRAGMENT_MISSING in self:
             res = '?'
         else:
@@ -383,7 +576,7 @@ class gene(CentralDogma):
         :param str namespace: The name of the database used to identify this entity
         :param str name: The database's preferred name or label for this entity
         :param str identifier: The database's identifier for this entity
-        :param list[Variant] variants: A list of variants
+        :param Optional[Variant or list[Variant]] variants: An optional variant or list of variants
         """
         super(gene, self).__init__(GENE, namespace, name=name, identifier=identifier, variants=variants)
 
@@ -396,7 +589,7 @@ class rna(CentralDogma):
         :param str namespace: The name of the database used to identify this entity
         :param str name: The database's preferred name or label for this entity
         :param str identifier: The database's identifier for this entity
-        :param list[Variant] variants: A list of variants
+        :param Optional[Variant or list[Variant]] variants: An optional variant or list of variants
 
 
         Example: AKT1 protein coding gene's RNA:
@@ -418,7 +611,7 @@ class mirna(CentralDogma):
         :param str namespace: The name of the database used to identify this entity
         :param str name: The database's preferred name or label for this entity
         :param str identifier: The database's identifier for this entity
-        :param list[Variant] variants: A list of variants
+        :param Optional[Variant or list[Variant]] variants: An optional variant or list of variants
 
         Human miRNA's are listed on HUGO's `MicroRNAs (MIR) <https://www.genenames.org/cgi-bin/genefamilies/set/476>`_
         gene family.
@@ -447,7 +640,7 @@ class protein(CentralDogma):
         :param str namespace: The name of the database used to identify this entity
         :param str name: The database's preferred name or label for this entity
         :param str identifier: The database's identifier for this entity
-        :param list[Variant] variants: A list of variants
+        :param Optional[Variant or list[Variant]] variants: An optional variant or list of variants
 
         Example: AKT
 
@@ -493,23 +686,37 @@ class reaction(BaseEntity):
 
     def __init__(self, reactants, products):
         """
-        :param list[BaseAbundance] reactants: A list of PyBEL node data dictionaries representing the reactants
-        :param list[BaseAbundance] products: A list of PyBEL node data dictionaries representing the products
+        :param BaseAbundance or list[BaseAbundance] reactants: An entity or list of entities participating as reactants
+        :param BaseAbundance or list[BaseAbundance] products: An entity or list of entities participating as products
 
         Example:
 
         >>> reaction([protein(namespace='HGNC', name='KNG1')], [abundance(namespace='CHEBI', name='bradykinin')])
         """
         super(reaction, self).__init__(func=REACTION)
-        self.update({
-            REACTANTS: reactants,
-            PRODUCTS: products
-        })
+
+        if isinstance(reactants, BaseAbundance):
+            self[REACTANTS] = [reactants]
+        else:
+            self[REACTANTS] = reactants
+
+        if isinstance(products, BaseAbundance):
+            self[PRODUCTS] = [products]
+        else:
+            self[PRODUCTS] = products
 
     def as_tuple(self):
+        """Returns the reaction as a canonicalized tuple
+
+        :rtype: tuple
+        """
         return self[FUNCTION], _entity_list_as_tuple(self[REACTANTS]), _entity_list_as_tuple(self[PRODUCTS])
 
     def as_bel(self):
+        """Returns the reaction as canonicalized BEL
+
+        :rtype: str
+        """
         return 'rxn(reactants({}), products({}))'.format(
             _entity_list_as_bel(self[REACTANTS]),
             _entity_list_as_bel(self[PRODUCTS])
@@ -530,11 +737,19 @@ class ListAbundance(BaseEntity):
         })
 
     def as_tuple(self):
+        """Returns the list abundance as a canonicalized tuple
+
+        :rtype: tuple
+        """
         return (self[FUNCTION],) + _entity_list_as_tuple(self[MEMBERS])
 
     def as_bel(self):
+        """Returns the list abundance as canonicalized BEL
+
+        :rtype: str
+        """
         return '{}({})'.format(
-            rev_abundance_labels[self[FUNCTION]],
+            self.short_bel_function,
             _entity_list_as_bel(self[MEMBERS])
         )
 
@@ -555,6 +770,27 @@ class complex_abundance(ListAbundance):
             self.update(entity(namespace=namespace, name=name, identifier=identifier))
 
 
+class named_complex_abundance(BaseAbundance):
+    """Builds a named complex abundance node data dictionary"""
+
+    def __init__(self, namespace=None, name=None, identifier=None):
+        """
+        :param str namespace: The name of the database used to identify this entity
+        :param str name: The database's preferred name or label for this entity
+        :param str identifier: The database's identifier for this entity
+
+        Example:
+
+        >>> named_complex_abundance(namespace='SCOMP', name='Calcineurin Complex')
+        """
+        super(named_complex_abundance, self).__init__(
+            func=COMPLEX,
+            namespace=namespace,
+            name=name,
+            identifier=identifier
+        )
+
+
 class composite_abundance(ListAbundance):
     """Builds a composite abundance node data dictionary"""
 
@@ -565,8 +801,16 @@ class composite_abundance(ListAbundance):
         super(composite_abundance, self).__init__(func=COMPOSITE, members=members)
 
 
+@six.add_metaclass(abc.ABCMeta)
 class FusionRangeBase(dict):
     """The superclass for fusion range data dictionaries"""
+
+    @abc.abstractmethod
+    def as_tuple(self):
+        """Returns this fusion range as a tuple
+
+        :rtype: tuple
+        """
 
 
 class missing_fusion_range(FusionRangeBase):
@@ -608,7 +852,7 @@ class fusion_range(FusionRangeBase):
         })
 
     def as_tuple(self):
-        """
+        """Returns the fusion range as a tuple
 
         :rtype: tuple
         """
@@ -619,6 +863,10 @@ class fusion_range(FusionRangeBase):
         )
 
     def as_bel(self):
+        """Returns the fusion range as BEL
+
+        :rtype: str
+        """
         return '{reference}.{start}_{stop}'.format(
             reference=self[FUSION_REFERENCE],
             start=self[FUSION_START],
@@ -651,30 +899,63 @@ class FusionBase(BaseEntity):
             }
         })
 
+    @property
+    def partner_5p(self):
+        """
+        :rtype: CentralDogma
+        """
+        return self[FUSION][PARTNER_5P]
+
+    @property
+    def partner_3p(self):
+        """
+        :rtype: CentralDogma
+        """
+        return self[FUSION][PARTNER_3P]
+
+    @property
+    def range_5p(self):
+        """
+        :rtype: FusionRangeBase
+        """
+        return self[FUSION][RANGE_5P]
+
+    @property
+    def range_3p(self):
+        """
+        :rtype: FusionRangeBase
+        """
+        return self[FUSION][RANGE_3P]
+
     def as_bel(self):
+        """Returns the fusion as BEL
+
+        :rtype: str
+        """
         return "{}(fus({}:{}, {}, {}:{}, {}))".format(
-            rev_abundance_labels[self[FUNCTION]],
-            self[FUSION][PARTNER_5P][NAMESPACE],
-            self[FUSION][PARTNER_5P][NAME],
-            str(self[FUSION][RANGE_5P]),
-            self[FUSION][PARTNER_3P][NAMESPACE],
-            self[FUSION][PARTNER_3P][NAME],
-            str(self[FUSION][RANGE_3P])
+            self.short_bel_function,
+            self.partner_5p[NAMESPACE],
+            self.partner_5p[NAME],
+            str(self.range_5p),
+            self.partner_3p[NAMESPACE],
+            self.partner_3p[NAME],
+            str(self.range_3p)
         )
 
     def as_tuple(self):
-        """
+        """Returns the fusion as a canonicalized tuple
+
         :rtype: tuple
         """
         fusion = self[FUSION]
 
         partner5p = fusion[PARTNER_5P][NAMESPACE], fusion[PARTNER_5P][NAME]
         partner3p = fusion[PARTNER_3P][NAMESPACE], fusion[PARTNER_3P][NAME]
-        range5p = fusion[RANGE_5P].as_tuple()
-        range3p = fusion[RANGE_3P].as_tuple()
+        range5p = self.range_5p.as_tuple()
+        range3p = self.range_3p.as_tuple()
 
         return (
-            self[FUNCTION],
+            self.function,
             partner5p,
             range5p,
             partner3p,

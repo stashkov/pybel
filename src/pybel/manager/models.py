@@ -13,9 +13,14 @@ from sqlalchemy.orm import backref, relationship
 
 from .utils import int_or_str
 from ..constants import *
-from ..dsl import fragment, fusion_range, hgvs, missing_fusion_range
+from ..dsl import (
+    abundance, bioprocess, complex_abundance, composite_abundance, fragment, fusion_range, gene, gene_fusion, gmod,
+    hgvs, mirna, missing_fusion_range, named_complex_abundance, pathology, pmod, protein, protein_fusion, reaction, rna,
+    rna_fusion,
+)
+from ..dsl.nodes import Variant
 from ..io.gpickle import from_bytes, to_bytes
-from ..tokens import node_to_tuple, sort_dict_list, sort_variant_dict_list
+from ..tokens import sort_abundances
 
 __all__ = [
     'Base',
@@ -70,6 +75,16 @@ PROPERTY_TABLE_NAME = 'pybel_property'
 LONGBLOB = 4294967295
 
 Base = declarative_base()
+
+_fn_dsl_map = {
+    PROTEIN: protein,
+    GENE: gene,
+    RNA: rna,
+    MIRNA: mirna,
+    PATHOLOGY: pathology,
+    BIOPROCESS: bioprocess,
+    ABUNDANCE: abundance
+}
 
 namespace_hierarchy = Table(
     NAMESPACE_HIERARCHY_TABLE_NAME,
@@ -198,6 +213,44 @@ class NamespaceEntry(Base):
 
     def __str__(self):
         return '[{}]{}:{}'.format(self.namespace.id, self.namespace, self.name)
+
+    def _as_dsl(self, fn, **kwargs):
+        """
+
+        :param type[BaseAbundance] fn:
+        :rtype: BaseAbundance
+        """
+        return fn(namespace=self.namespace.keyword, name=self.name, identifier=self.identifier, **kwargs)
+
+    def _as_central_dogma(self, fn, variants=None):
+        return self._as_dsl(fn, variants=variants)
+
+    def as_gene(self, variants=None):
+        """
+        :rtype: pybel.dsl.nodes.gene
+        """
+        return self._as_central_dogma(gene, variants=variants)
+
+    def as_rna(self, variants=None):
+        """
+        :rtype: pybel.dsl.nodes.rna
+        """
+        return self._as_central_dogma(rna, variants=variants)
+
+    def as_protein(self, variants=None):
+        """
+        :rtype: pybel.dsl.nodes.protein
+        """
+        return self._as_central_dogma(protein, variants=variants)
+
+    def as_complex(self, members):
+        return self._as_dsl(complex_abundance, members=members)
+
+    def as_named_complex(self):
+        """
+        :rtype: pybel.dsl.nodes.named_complex_abundance
+        """
+        return self._as_dsl(named_complex_abundance)
 
     def to_json(self, include_id=False):
         """Describes the namespaceEntry as dictionary of Namespace-Keyword and Name.
@@ -465,54 +518,99 @@ class Node(Base):
     def __repr__(self):
         return '<Node {}: {}>'.format(self.sha512[:10], self.bel)
 
-    def to_json(self, include_id=False, include_hash=False):
-        """Serializes this node as a PyBEL node data dictionary
-
-        :param bool include_id: Include the database identifier?
-        :param bool include_hash: Include the node hash?
-        :rtype: dict[str,str]
-        """
-        result = {FUNCTION: self.type}
-
+    def _update_to_json_rv(self, result, include_id=False, include_hash=False):
         if include_id:
             result['id'] = self.id
 
         if include_hash:
             result[HASH] = self.sha512
 
-        if self.namespace_entry:
-            namespace_entry = self.namespace_entry.to_json()
-            result.update(namespace_entry)
+        return result
 
+    def to_json(self, include_id=False, include_hash=False):
+        """Serializes this node as a PyBEL node data dictionary
+
+        :param bool include_id: Include the database identifier?
+        :param bool include_hash: Include the node hash?
+        :rtype: BaseEntity
+        """
         if self.has_fusion:
-            result[FUSION] = self.modifications[0].to_json()
+            fusion_modification = self.modifications[0]  # should only have one modification
+            result = fusion_modification.to_fusion_dsl(self.type)
+            self._update_to_json_rv(result, include_id=include_id, include_hash=include_hash)
+            return result
 
-        elif self.is_variant:
-            result[VARIANTS] = sort_variant_dict_list(
-                modification.to_json()
-                for modification in self.modifications
+        if self.type == REACTION:
+            reactants = [
+                edge.target.to_json()
+                for edge in self.out_edges.filter(Edge.relation == HAS_REACTANT)
+            ]
+            products = [
+                edge.target.to_json()
+                for edge in self.out_edges.filter(Edge.relation == HAS_PRODUCT)
+            ]
+            result = reaction(
+                reactants=sort_abundances(reactants),
+                products=sort_abundances(products)
             )
+            self._update_to_json_rv(result, include_id=include_id, include_hash=include_hash)
+            return result
 
-        elif self.type == REACTION:
-            reactants = []
-            products = []
-
-            for edge in self.out_edges.filter(Edge.relation == HAS_PRODUCT):
-                products.append(edge.target.to_json())
-
-            for edge in self.out_edges.filter(Edge.relation == HAS_REACTANT):
-                reactants.append(edge.target.to_json())
-
-            result[REACTANTS] = sort_dict_list(reactants)
-            result[PRODUCTS] = sort_dict_list(products)
-
-        elif self.type == COMPOSITE or (self.type == COMPLEX and not self.namespace_entry):
-            # FIXME handle when there's a named complex with member list as well
-            result[MEMBERS] = sort_dict_list(
+        if self.type == COMPOSITE:
+            result = composite_abundance(members=sort_abundances(
                 edge.target.to_json()
                 for edge in self.out_edges.filter(Edge.relation == HAS_COMPONENT)
-            )
+            ))
+            self._update_to_json_rv(result, include_id=include_id, include_hash=include_hash)
+            return result
 
+        if self.type == COMPLEX or (self.type == COMPLEX and not self.namespace_entry):
+            members = [
+                edge.target.to_json()
+                for edge in self.out_edges.filter(Edge.relation == HAS_COMPONENT)
+            ]
+
+            if not members and self.namespace_entry:
+                result = self.namespace_entry.as_named_complex()
+
+            elif members and self.namespace_entry:
+                result = self.namespace_entry.as_complex(members=members)
+
+            elif members and not self.namespace_entry:  # means there are members, otherwise there's something wrong
+                result = complex_abundance(members=members)
+
+            else:
+                raise ValueError
+
+            self._update_to_json_rv(result, include_id=include_id, include_hash=include_hash)
+            return result
+
+        if self.is_variant:
+            variants = sorted([
+                modification.to_variant()
+                for modification in self.modifications
+            ], key=Variant.as_tuple)
+
+            if self.type == PROTEIN:
+                result = self.namespace_entry.as_protein(variants=variants)
+            elif self.type == RNA:
+                result = self.namespace_entry.as_rna(variants=variants)
+            elif self.type == GENE:
+                result = self.namespace_entry.as_gene(variants=variants)
+            else:
+                raise ValueError
+
+            self._update_to_json_rv(result, include_id=include_id, include_hash=include_hash)
+            return result
+
+        dsl_func = _fn_dsl_map[self.type]
+
+        result = dsl_func(
+            namespace=self.namespace_entry.namespace.keyword,
+            name=self.namespace_entry.name,
+            identifier=self.namespace_entry.identifier
+        )
+        self._update_to_json_rv(result, include_id=include_id, include_hash=include_hash)
         return result
 
     def to_tuple(self):
@@ -520,7 +618,7 @@ class Node(Base):
 
         :rtype: tuple
         """
-        return node_to_tuple(self.to_json())
+        return self.to_json().as_tuple()
 
 
 class Modification(Base):
@@ -555,68 +653,102 @@ class Modification(Base):
 
     sha512 = Column(String(255), index=True)
 
-    def _fusion_to_json(self):
-        """Converts this modification to a FUSION data dictionary. Don't use this without checking
-        ``self.type == FUSION`` first"""
-        fusion_dict = {
-            PARTNER_3P: self.p3_partner.to_json(),
-            PARTNER_5P: self.p5_partner.to_json(),
-            RANGE_3P: {},
-            RANGE_5P: {}
-        }
+    def _get_3p_range(self):
+        """
+        :rtype: pybel.dsl.nodes.FusionRangeBase
+        """
+        if not self.p3_reference:
+            return missing_fusion_range()
 
-        if self.p5_reference:
-            fusion_dict[RANGE_5P] = fusion_range(
-                reference=str(self.p5_reference),
-                start=int_or_str(self.p5_start),
-                stop=int_or_str(self.p5_stop),
+        return fusion_range(
+            reference=str(self.p3_reference),
+            start=int_or_str(self.p3_start),
+            stop=int_or_str(self.p3_stop),
+        )
+
+    def _get_5p_range(self):
+        """
+        :rtype: pybel.dsl.nodes.FusionRangeBase
+        """
+        if not self.p5_reference:
+            return missing_fusion_range()
+
+        return fusion_range(
+            reference=str(self.p5_reference),
+            start=int_or_str(self.p5_start),
+            stop=int_or_str(self.p5_stop),
+        )
+
+    def to_fusion_dsl(self, fn):
+        """
+        :param str fn: Either GENE, RNA, or PROTEIN
+        :rtype: FusionBase
+        """
+        range_5p = self._get_5p_range()
+        range_3p = self._get_3p_range()
+
+        if fn == PROTEIN:
+            return protein_fusion(
+                partner_5p=self.p5_partner.as_protein(),
+                partner_3p=self.p3_partner.as_protein(),
+                range_5p=range_5p,
+                range_3p=range_3p,
+            )
+        elif fn == RNA:
+            return rna_fusion(
+                partner_5p=self.p5_partner.as_rna(),
+                partner_3p=self.p3_partner.as_rna(),
+                range_5p=range_5p,
+                range_3p=range_3p,
+            )
+        elif fn == GENE:
+            return gene_fusion(
+                partner_5p=self.p5_partner.as_gene(),
+                partner_3p=self.p3_partner.as_gene(),
+                range_5p=range_5p,
+                range_3p=range_3p,
             )
         else:
-            fusion_dict[RANGE_5P] = missing_fusion_range()
+            raise ValueError
 
-        if self.p3_reference:
-            fusion_dict[RANGE_3P] = fusion_range(
-                reference=str(self.p3_reference),
-                start=int_or_str(self.p3_start),
-                stop=int_or_str(self.p3_stop),
-            )
-        else:
-            fusion_dict[RANGE_3P] = missing_fusion_range()
+    def to_fragment(self):
+        """
+        :rtype: pybel.dsl.nodes.fragment
+        """
+        return fragment(
+            start=int_or_str(self.p3_start),
+            stop=int_or_str(self.p3_stop)
+        )
 
-        return fusion_dict
-
-    def to_json(self):
+    def to_variant(self):
         """Recreates a is_variant dictionary for :class:`BELGraph`
 
         :return: Dictionary that describes a variant or a fusion.
-        :rtype: dict
+        :rtype: pybel.dsl.nodes.Variant
         """
-        if self.type == FUSION:
-            return self._fusion_to_json()
-
         if self.type == FRAGMENT:
-            return fragment(
-                start=int_or_str(self.p3_start),
-                stop=int_or_str(self.p3_stop)
-            )
+            return self.to_fragment()
 
         if self.type == HGVS:
-            return hgvs(str(self.variantString))
+            return hgvs(self.variantString)
 
-        # must be GMOD or PMOD now
-        mod_dict = {
-            KIND: self.type,
-            IDENTIFIER: self.identifier.to_json()
-        }
+        if self.type == GMOD:
+            return gmod(
+                namespace=self.identifier.namespace.keyword,
+                name=self.identifier.name,
+                identifier=self.identifier.identifier
+            )
 
         if self.type == PMOD:
-            if self.residue:
-                mod_dict[PMOD_CODE] = self.residue
+            return pmod(
+                namespace=self.identifier.namespace.keyword,
+                name=self.identifier.name,
+                identifier=self.identifier.identifier,
+                position=self.position,
+                code=self.residue
+            )
 
-            if self.position:
-                mod_dict[PMOD_POSITION] = self.position
-
-        return mod_dict
+        raise ValueError
 
 
 author_citation = Table(

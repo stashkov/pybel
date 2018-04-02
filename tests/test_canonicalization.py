@@ -5,11 +5,12 @@ import unittest
 from pybel import BELGraph
 from pybel.canonicalize import canonicalize_edge, fusion_range_to_bel, variant_to_bel
 from pybel.constants import (
-    ABUNDANCE, BEL_DEFAULT_NAMESPACE, BIOPROCESS, COMPLEX, COMPOSITE, GENE, INCREASES, KIND,
-    MODIFIER, PATHOLOGY, PROTEIN, REACTION, RNA,
+    ABUNDANCE, BEL_DEFAULT_NAMESPACE, BIOPROCESS, COMPLEX, COMPOSITE, FRAGMENT, GENE, INCREASES, MODIFIER, PATHOLOGY,
+    PMOD, PROTEIN, REACTION, RNA,
 )
 from pybel.dsl import *
 from pybel.dsl.edges import extracellular, intracellular
+
 from tests.utils import n
 
 
@@ -17,10 +18,6 @@ class TestCanonicalize(unittest.TestCase):
     def test_variant_to_bel_key_error(self):
         with self.assertRaises(Exception):
             variant_to_bel({})
-
-    def test_variant_to_bel_value_error(self):
-        with self.assertRaises(ValueError):
-            variant_to_bel({KIND: 'nope'})
 
     def test_canonicalize_variant(self):
         self.assertEqual('var(p.Val600Glu)', variant_to_bel(hgvs('p.Val600Glu')))
@@ -80,8 +77,23 @@ class TestCanonicalize(unittest.TestCase):
         self.assertEqual('a(CHEBI:"test name")', str(long))
         self.assertEqual((ABUNDANCE, 'CHEBI', 'test name'), long.as_tuple())
 
+    def test_gene_reference(self):
+        node = gene(namespace='EGID', name='780')
+        self.assertEqual('g(EGID:780)', str(node))
+        self.assertEqual((GENE, 'EGID', '780'), node.as_tuple())
+
     def test_protein_reference(self):
         self.assertEqual('p(HGNC:AKT1)', str(protein(namespace='HGNC', name='AKT1')))
+
+    def test_protein_pmod(self):
+        node = protein(name='PLCG1', namespace='HGNC', variants=[pmod(name='Ph', code='Tyr')])
+        self.assertEqual('p(HGNC:PLCG1, pmod(Ph, Tyr))', str(node))
+        self.assertEqual((PROTEIN, 'HGNC', 'PLCG1', (PMOD, (BEL_DEFAULT_NAMESPACE, 'Ph'), 'Tyr')), node.as_tuple())
+
+    def test_protein_fragment(self):
+        node = protein(name='APP', namespace='HGNC', variants=[fragment(start=672, stop=713)])
+        self.assertEqual('p(HGNC:APP, frag(672_713))', str(node))
+        self.assertEqual((PROTEIN, 'HGNC', 'APP', (FRAGMENT, (672, 713))), node.as_tuple())
 
     def test_mirna_reference(self):
         self.assertEqual('m(HGNC:MIR1)', str(mirna(namespace='HGNC', name='MIR1')))
@@ -127,6 +139,11 @@ class TestCanonicalize(unittest.TestCase):
         self.assertEqual('bp(GO:apoptosis)', str(node))
         self.assertEqual((BIOPROCESS, 'GO', 'apoptosis'), node.as_tuple())
 
+    def test_named_complex_abundance(self):
+        node = named_complex_abundance(namespace='SCOMP', name='Calcineurin Complex')
+        self.assertEqual('complex(SCOMP:"Calcineurin Complex")', str(node))
+        self.assertEqual((COMPLEX, 'SCOMP', 'Calcineurin Complex'), node.as_tuple())
+
     def test_complex_abundance(self):
         node = complex_abundance(members=[protein(namespace='HGNC', name='FOS'), protein(namespace='HGNC', name='JUN')])
         t = COMPLEX, (PROTEIN, 'HGNC', 'FOS'), (PROTEIN, 'HGNC', 'JUN')
@@ -157,15 +174,26 @@ class TestCanonicalizeEdge(unittest.TestCase):
     as a second level hash"""
 
     def setUp(self):
+        """Builds a graph and adds some nodes to it"""
         self.g = BELGraph()
-        self.u = self.g.add_node_from_data(protein(name='u', namespace='TEST'))
-        self.v = self.g.add_node_from_data(protein(name='v', namespace='TEST'))
+        self.u = protein(name='u', namespace='TEST')
+        self.v = protein(name='v', namespace='TEST')
+        self.g.add_node_from_data(self.u)
+        self.g.add_node_from_data(self.v)
         self.key = 0
 
     def get_data(self, k):
+        """Gets the data associated with the sample key"""
         return self.g.edge[self.u][self.v][k]
 
     def add_edge(self, subject_modifier=None, object_modifier=None, annotations=None):
+        """Wrapps adding a sample edge
+
+        :param subject_modifier:
+        :param object_modifier:
+        :param annotations:
+        :rtype: str
+        """
         self.key += 1
 
         self.g.add_qualified_edge(

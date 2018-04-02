@@ -5,7 +5,7 @@
 import unittest
 
 from pybel.constants import ABUNDANCE, COMPLEX
-from pybel.dsl import abundance, complex_abundance, protein
+from pybel.dsl import abundance, complex_abundance, fragment, protein
 from pybel.utils import ensure_quotes, hash_node
 
 from tests.utils import n
@@ -63,6 +63,15 @@ class TestDSL(unittest.TestCase):
         self.assertEqual(node_tuple, nine_one_one.as_tuple())
         self.assertEqual(hash(node_tuple), hash(nine_one_one))
         self.assertEqual(hash_node(node_tuple), nine_one_one.as_sha512())
+
+    def test_missing_parent(self):
+        app = protein(name='APP', namespace='HGNC')
+        self.assertIsNone(app.get_parent(), msg='parent should be none for reference node')
+
+    def test_get_parent(self):
+        ab42 = protein(name='APP', namespace='HGNC', variants=[fragment(start=672, stop=713)])
+        app = ab42.get_parent()
+        self.assertEqual('p(HGNC:APP)', app.as_bel())
 
 
 if __name__ == '__main__':

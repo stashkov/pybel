@@ -21,7 +21,7 @@ class TestSummary(unittest.TestCase):
         }
 
         self.assertEqual(set(result), get_functions(sialic_acid_graph))
-        self.assertEqual(result, count_functions(sialic_acid_graph))
+        self.assertEqual(result, dict(count_functions(sialic_acid_graph)))
 
     def test_functions_egf(self):
         result = {
@@ -31,7 +31,7 @@ class TestSummary(unittest.TestCase):
         }
 
         self.assertEqual(set(result), get_functions(egf_graph))
-        self.assertEqual(result, count_functions(egf_graph))
+        self.assertEqual(result, dict(count_functions(egf_graph)))
 
     def test_namespaces_sialic(self):
         result = {
@@ -40,7 +40,7 @@ class TestSummary(unittest.TestCase):
         }
 
         self.assertEqual(set(result), get_namespaces(sialic_acid_graph))
-        self.assertEqual(result, count_namespaces(sialic_acid_graph))
+        self.assertEqual(result, dict(count_namespaces(sialic_acid_graph)))
 
     def test_namespaces_egf(self):
         result = {
@@ -62,7 +62,7 @@ class TestSummary(unittest.TestCase):
         }
 
         self.assertEqual(set(result), get_names_by_namespace(sialic_acid_graph, 'HGNC'))
-        self.assertEqual(result, count_names_by_namespace(sialic_acid_graph, 'HGNC'))
+        self.assertEqual(result, dict(count_names_by_namespace(sialic_acid_graph, 'HGNC')))
 
     def test_names_fusions(self):
         """This tests that names inside fusions are still found by the iterator"""

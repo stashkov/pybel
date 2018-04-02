@@ -34,7 +34,8 @@ __all__ = [
 
 citation = {
     CITATION_TYPE: CITATION_TYPE_PUBMED,
-    CITATION_REFERENCE: '26438529'
+    CITATION_REFERENCE: '26438529',
+    CITATION_AUTHORS: 'Malik M|Parikh I|Vasquez JB|Smith C|Tai L|Bu G|LaDu MJ|Fardo DW|Rebeck GW|Estus S'
 }
 
 evidence_1 = """

@@ -29,15 +29,15 @@ from .models import (
 )
 from .query_manager import QueryManager
 from .utils import extract_shared_optional, extract_shared_required, parse_owl, update_insert_values
-from ..canonicalize import node_to_bel
 from ..constants import *
+from ..dsl.nodes import BaseEntity
 from ..language import (
     BEL_DEFAULT_NAMESPACE_URL, BEL_DEFAULT_NAMESPACE_VERSION, activity_mapping, gmod_mappings,
     pmod_mappings,
 )
 from ..resources.definitions import get_bel_resource
 from ..struct import BELGraph, union
-from ..utils import hash_citation, hash_dump, hash_edge, hash_evidence, hash_node, parse_datetime
+from ..utils import hash_citation, hash_dump, hash_edge, hash_evidence, parse_datetime
 
 __all__ = [
     'Manager',
@@ -1091,11 +1091,11 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
         t = time.time()
         c = 0
         for u, v, data in tqdm(graph.edges_iter(data=True), total=graph.number_of_edges(), desc='Edges'):
-            if hash_node(u) not in self.object_cache_node:
+            if u.as_sha512() not in self.object_cache_node:
                 log.debug('Skipping uncached node: %s', u)
                 continue
 
-            if hash_node(v) not in self.object_cache_node:
+            if v.as_sha512() not in self.object_cache_node:
                 log.debug('Skipping uncached node: %s', v)
                 continue
 
@@ -1171,6 +1171,14 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
         ]
 
     def _add_qualified_edge(self, network, graph, u, v, data):
+        """
+
+        :param pybel.manager.models.Network network:
+        :param pybel.BELGraph graph:
+        :param BaseEntity u:
+        :param BaseEntity v:
+        :param dict data:
+        """
         citation_dict = data[CITATION]
 
         citation = self.get_or_create_citation(
@@ -1198,8 +1206,8 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
         bel = graph.edge_to_bel(u, v, data=data)
         edge_hash = hash_edge(u, v, data)
         edge = self.get_or_create_edge(
-            source=self.object_cache_node[hash_node(u)],
-            target=self.object_cache_node[hash_node(v)],
+            source=self.object_cache_node[u.as_sha512()],
+            target=self.object_cache_node[v.as_sha512()],
             relation=data[RELATION],
             bel=bel,
             edge_hash=edge_hash,
@@ -1213,8 +1221,8 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
         bel = graph.edge_to_bel(u, v, data=data)
         edge_hash = hash_edge(u, v, data)
         edge = self.get_or_create_edge(
-            source=self.object_cache_node[hash_node(u)],
-            target=self.object_cache_node[hash_node(v)],
+            source=self.object_cache_node[u.as_sha512()],
+            target=self.object_cache_node[v.as_sha512()],
             relation=data[RELATION],
             bel=bel,
             edge_hash=edge_hash,
@@ -1251,28 +1259,30 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
         self.object_cache_evidence[evidence_hash] = evidence
         return evidence
 
-    def get_or_create_node(self, graph, node_identifier):
-        """Creates entry and object for given node if it does not exist.
+    def get_or_create_node(self, graph, node_data):
+        """Creates entry and object for given node if it does not exist. Returns none if can not create node.
 
         :param BELGraph graph: A BEL graph
-        :param tuple node_identifier: A PyBEL node tuple
-        :rtype: Node
+        :param BaseEntity node_data: A PyBEL node tuple
+        :rtype: Optional[Node]
         """
-        node_hash = hash_node(node_identifier)
-        if node_hash in self.object_cache_node:
-            return self.object_cache_node[node_hash]
 
-        node_data = graph.node[node_identifier]
-        bel = node_to_bel(node_data)
+        if not isinstance(node_data, BaseEntity):
+            raise RuntimeError('stop using tuples! {} {}'.format(node_data.__class__.__name__, node_data))
 
-        node = self.get_node_by_hash(node_hash)
+        sha512 = node_data.as_sha512()
+        bel = str(node_data)
 
-        if node is not None:
-            self.object_cache_node[node_hash] = node
-            return node
+        node_model = self.object_cache_node.get(sha512)
+        if node_model is not None:
+            return node_model
 
-        type = node_data[FUNCTION]
-        node = Node(type=type, bel=bel, sha512=node_hash)
+        node_model = self.get_node_by_hash(sha512)
+        if node_model is not None:
+            self.object_cache_node[sha512] = node_model
+            return node_model
+
+        node_model = Node(type=node_data[FUNCTION], bel=bel, sha512=sha512)
 
         namespace = node_data.get(NAMESPACE)
 
@@ -1289,7 +1299,7 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
                 return
 
             self.session.add(entry)
-            node.namespace_entry = entry
+            node_model.namespace_entry = entry
 
         elif namespace in graph.namespace_pattern:
             name = node_data[NAME]
@@ -1297,15 +1307,15 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
             entry = self.get_or_create_regex_namespace_entry(namespace, pattern, name)
 
             self.session.add(entry)
-            node.namespace_entry = entry
+            node_model.namespace_entry = entry
 
         else:
             log.warning("No reference in BELGraph for namespace: {}".format(node_data[NAMESPACE]))
             return
 
         if VARIANTS in node_data or FUSION in node_data:
-            node.is_variant = True
-            node.has_fusion = FUSION in node_data
+            node_model.is_variant = True
+            node_model.has_fusion = FUSION in node_data
 
             modifications = self.get_or_create_modification(graph, node_data)
 
@@ -1313,11 +1323,11 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
                 log.warning('could not create %s because had an uncachable modification', bel)
                 return
 
-            node.modifications = modifications
+            node_model.modifications = modifications
 
-        self.session.add(node)
-        self.object_cache_node[node_hash] = node
-        return node
+        self.session.add(node_model)
+        self.object_cache_node[sha512] = node_model
+        return node_model
 
     def drop_nodes(self):
         """Drops all nodes in RDB"""
@@ -1380,6 +1390,13 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
         self.session.add(edge)
         self.object_cache_edge[edge_hash] = edge
         return edge
+
+    def count_citations(self):
+        """Counts the citations in the database
+
+        :rtype: int
+        """
+        return self.session.query(Citation).count()
 
     def get_or_create_citation(self, type, reference, name=None, title=None, volume=None, issue=None, pages=None,
                                date=None, first=None, last=None, authors=None):

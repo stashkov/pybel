@@ -7,8 +7,6 @@ import unittest
 from json import dumps
 from pathlib import Path
 
-from requests.compat import urlparse
-
 from pybel import BELGraph
 from pybel.constants import *
 from pybel.dsl import *
@@ -16,6 +14,7 @@ from pybel.manager import Manager
 from pybel.parser.exc import *
 from pybel.parser.parse_bel import BelParser
 from pybel.utils import subdict_matches
+from requests.compat import urlparse
 
 log = logging.getLogger(__name__)
 
@@ -251,6 +250,16 @@ class TestTokenParserBase(unittest.TestCase):
 
     def add_default_provenance(self):
         update_provenance(self.parser.control_parser)
+
+    def help_test_parent_in_graph(self, node):
+        """Checks that the parent is also in the graph
+
+        :param pybel.dsl.nodes.CentralDogma node:
+        """
+        parent = node.get_parent()
+        self.assertIsNotNone(parent)
+        self.assertHasNode(parent, **parent)
+        self.assertHasEdge(parent, node, relation=HAS_VARIANT)
 
 
 expected_test_simple_metadata = {

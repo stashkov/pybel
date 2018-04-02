@@ -53,18 +53,19 @@ class TestNodePredicate(unittest.TestCase):
 
     def test_p1_tuple_variants(self):
         g = BELGraph()
-        p1_tuple = g.add_node_from_data(p1)
+        g.add_node_from_data(p1)
 
-        self.assertFalse(is_abundance(g, p1_tuple))
-        self.assertFalse(is_gene(g, p1_tuple))
-        self.assertTrue(is_protein(g, p1_tuple))
-        self.assertFalse(is_pathology(g, p1_tuple))
-        self.assertTrue(not_pathology(g, p1_tuple))
+        self.assertFalse(is_abundance(p1))
+        self.assertFalse(is_abundance(p1))
+        self.assertFalse(is_gene(p1))
+        self.assertTrue(is_protein(p1))
+        self.assertFalse(is_pathology(p1))
+        self.assertTrue(not_pathology(p1))
 
-        self.assertFalse(has_variant(g, p1_tuple))
-        self.assertFalse(has_protein_modification(g, p1_tuple))
-        self.assertFalse(has_gene_modification(g, p1_tuple))
-        self.assertFalse(has_hgvs(g, p1_tuple))
+        self.assertFalse(has_variant(p1))
+        self.assertFalse(has_protein_modification(p1))
+        self.assertFalse(has_gene_modification(p1))
+        self.assertFalse(has_hgvs(g, p1))
 
     def test_p2_data_variants(self):
         self.assertFalse(is_abundance(p2))
@@ -80,18 +81,18 @@ class TestNodePredicate(unittest.TestCase):
 
     def test_p2_tuple_variants(self):
         g = BELGraph()
-        p2_tuple = g.add_node_from_data(p2)
+        g.add_node_from_data(p2)
 
-        self.assertFalse(is_abundance(g, p2_tuple))
-        self.assertFalse(is_gene(g, p2_tuple))
-        self.assertTrue(is_protein(g, p2_tuple))
-        self.assertFalse(is_pathology(g, p2_tuple))
-        self.assertTrue(not_pathology(g, p2_tuple))
+        self.assertFalse(is_abundance(g, p2))
+        self.assertFalse(is_gene(g, p2))
+        self.assertTrue(is_protein(g, p2))
+        self.assertFalse(is_pathology(g, p2))
+        self.assertTrue(not_pathology(g, p2))
 
-        self.assertTrue(has_variant(g, p2_tuple))
-        self.assertFalse(has_gene_modification(g, p2_tuple))
-        self.assertTrue(has_protein_modification(g, p2_tuple))
-        self.assertTrue(has_hgvs(g, p2_tuple))
+        self.assertTrue(has_variant(g, p2))
+        self.assertFalse(has_gene_modification(g, p2))
+        self.assertTrue(has_protein_modification(g, p2))
+        self.assertTrue(has_hgvs(g, p2))
 
     def test_p3(self):
         self.assertFalse(is_abundance(p3))
@@ -125,8 +126,9 @@ class TestNodePredicate(unittest.TestCase):
     def test_p1_active(self):
         """cat(p(HGNC:HSD11B1)) increases deg(a(CHEBI:cortisol))"""
         g = BELGraph()
-        u = g.add_node_from_data(protein(name='HSD11B1', namespace='HGNC'))
-        v = g.add_node_from_data(abundance(name='cortisol', namespace='CHEBI', identifier='17650'))
+
+        u = protein(name='HSD11B1', namespace='HGNC')
+        v = abundance(name='cortisol', namespace='CHEBI', identifier='17650')
 
         g.add_qualified_edge(
             u,
@@ -152,8 +154,8 @@ class TestNodePredicate(unittest.TestCase):
     def test_object_has_translocation(self):
         """p(HGNC: EGF) increases tloc(p(HGNC: VCP), GOCCID: 0005634, GOCCID: 0005737)"""
         g = BELGraph()
-        u = g.add_node_from_data(protein(name='EFG', namespace='HGNC'))
-        v = g.add_node_from_data(protein(name='VCP', namespace='HGNC'))
+        u = protein(name='EFG', namespace='HGNC')
+        v = protein(name='VCP', namespace='HGNC')
 
         g.add_qualified_edge(
             u,
@@ -183,8 +185,9 @@ class TestNodePredicate(unittest.TestCase):
     def test_object_has_secretion(self):
         """p(MGI:Il4) increases sec(p(MGI:Cxcl1))"""
         g = BELGraph()
-        u = g.add_node_from_data(protein(name='Il4', namespace='MGI'))
-        v = g.add_node_from_data(protein(name='Cxcl1', namespace='MGI'))
+
+        u = protein(name='Il4', namespace='MGI')
+        v = protein(name='Cxcl1', namespace='MGI')
 
         g.add_qualified_edge(
             u,
@@ -211,8 +214,9 @@ class TestNodePredicate(unittest.TestCase):
     def test_subject_has_secretion(self):
         """sec(p(MGI:S100b)) increases a(CHEBI:"nitric oxide")"""
         g = BELGraph()
-        u = g.add_node_from_data(protein(name='S100b', namespace='MGI'))
-        v = g.add_node_from_data(abundance(name='nitric oxide', namespace='CHEBI'))
+
+        u = protein(name='S100b', namespace='MGI')
+        v = abundance(name='nitric oxide', namespace='CHEBI')
 
         g.add_qualified_edge(
             u,
@@ -267,9 +271,13 @@ class TestNodePredicate(unittest.TestCase):
 
     def test_node_exclusion_tuples(self):
         g = BELGraph()
-        u = g.add_node_from_data(protein(name='S100b', namespace='MGI'))
-        v = g.add_node_from_data(abundance(name='nitric oxide', namespace='CHEBI'))
-        w = g.add_node_from_data(abundance(name='cortisol', namespace='CHEBI', identifier='17650'))
+        u = protein(name='S100b', namespace='MGI')
+        v = abundance(name='nitric oxide', namespace='CHEBI')
+        w = abundance(name='cortisol', namespace='CHEBI', identifier='17650')
+
+        g.add_node_from_data(u)
+        g.add_node_from_data(v)
+        g.add_node_from_data(w)
 
         f = node_exclusion_predicate_builder([u])
 
@@ -320,9 +328,13 @@ class TestNodePredicate(unittest.TestCase):
 
     def test_node_inclusion_tuples(self):
         g = BELGraph()
-        u = g.add_node_from_data(protein(name='S100b', namespace='MGI'))
-        v = g.add_node_from_data(abundance(name='nitric oxide', namespace='CHEBI'))
-        w = g.add_node_from_data(abundance(name='cortisol', namespace='CHEBI', identifier='17650'))
+        u = protein(name='S100b', namespace='MGI')
+        v = abundance(name='nitric oxide', namespace='CHEBI')
+        w = abundance(name='cortisol', namespace='CHEBI', identifier='17650')
+
+        g.add_node_from_data(u)
+        g.add_node_from_data(v)
+        g.add_node_from_data(w)
 
         f = node_inclusion_predicate_builder([u])
 

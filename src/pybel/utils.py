@@ -258,13 +258,13 @@ def _edge_to_tuple(u, v, data):
 def hash_edge(u, v, data):
     """Converts an edge tuple to a hash
     
-    :param tuple u: The source BEL node
-    :param tuple v: The target BEL node
+    :param BaseEntity u: The source BEL node
+    :param BaseEntity v: The target BEL node
     :param dict data: The edge's data dictionary
     :return: A hashed version of the edge tuple using md5 hash of the binary pickle dump of u, v, and the json dump of d
     :rtype: str
     """
-    edge_tuple = _edge_to_tuple(u, v, data)
+    edge_tuple = _edge_to_tuple(u.as_tuple(), v.as_tuple(), data)
     edge_tuple_bytes = pickle.dumps(edge_tuple)
     return hashlib.sha512(edge_tuple_bytes).hexdigest()
 

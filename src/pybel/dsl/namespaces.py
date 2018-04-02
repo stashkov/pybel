@@ -5,9 +5,11 @@
 from .nodes import abundance, protein
 
 
-def chebi(name=None, identifier=None):
-    return abundance(namespace='CHEBI', name=name, identifier=identifier)
+class chebi(abundance):
+    def __init__(self, name=None, identifier=None):
+        super(chebi, self).__init__(namespace='CHEBI', name=name, identifier=identifier)
 
 
-def hgnc(name=None, identifier=None):
-    return protein(namespace='HGNC', name=name, identifier=identifier)
+class hgnc(protein):
+    def __init__(self, name=None, identifier=None):
+        super(hgnc, self).__init__(namespace='HGNC', name=name, identifier=identifier)

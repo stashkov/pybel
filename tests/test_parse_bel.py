@@ -6,11 +6,15 @@ import unittest
 from pybel import BELGraph
 from pybel.constants import *
 from pybel.dsl import cell_surface_expression, entity, secretion, translocation
-from pybel.dsl.nodes import abundance, bioprocess, gene, gmod, hgvs, pmod
+from pybel.dsl.nodes import (
+    BaseAbundance, abundance, bioprocess, complex_abundance, composite_abundance, fusion_range, gene, gene_fusion, gmod,
+    hgvs, mirna, named_complex_abundance, pathology, pmod, protein, protein_fusion, protein_substitution, reaction, fragment, hgvs_unspecified, hgvs_reference, protein_deletion, rna, rna_fusion
+)
 from pybel.parser import BelParser
 from pybel.parser.exc import MalformedTranslocationWarning
 from pybel.parser.parse_bel import modifier_po_to_dict
 from pybel.tokens import node_to_tuple
+
 from tests.constants import TestTokenParserBase, assertHasEdge, assertHasNode, update_provenance
 
 log = logging.getLogger(__name__)
@@ -26,8 +30,8 @@ class TestAbundance(TestTokenParserBase):
         self.parser.clear()
         self.parser.general_abundance.setParseAction(self.parser.handle_term)
 
-        self.expected_node = ABUNDANCE, 'CHEBI', 'oxygen atom'
-        self.expected_node_data = abundance(namespace='CHEBI', name='oxygen atom')
+        self.expected_node = abundance(namespace='CHEBI', name='oxygen atom')
+        self.expected_node_tuple = self.expected_node.as_tuple()
 
         self.expected_canonical_bel = 'a(CHEBI:"oxygen atom")'
 
@@ -35,18 +39,16 @@ class TestAbundance(TestTokenParserBase):
         """small molecule"""
         statement = 'a(CHEBI:"oxygen atom")'
 
-        result = self.parser.general_abundance.parseString(statement)
+        self.parser.general_abundance.parseString(statement)
 
-        self.assertEqual(self.expected_node_data, result.asDict())
+        nodes = list(self.graph)
+        self.assertEqual(1, len(nodes))
+        node = nodes[0]
 
-        node = node_to_tuple(result)
-
+        self.assertIsInstance(node, BaseAbundance)
         self.assertEqual(self.expected_node, node)
-        self.assertEqual(self.expected_canonical_bel, self.graph.node_to_bel(self.expected_node))
-
-        self.assertEqual({}, modifier_po_to_dict(result), msg='The modifier dictionary should be empty')
-
-        self.assertTrue(self.graph.has_node_with_data(self.expected_node_data))
+        self.assertEqual(self.expected_node_tuple, node.as_tuple())
+        self.assertEqual(self.expected_canonical_bel, node.as_bel())
 
     def test_long_abundance(self):
         """small molecule"""
@@ -66,18 +68,13 @@ class TestAbundance(TestTokenParserBase):
 
         self.assertEqual(expected_result, result.asDict())
 
-        node = node_to_tuple(result)
-
-        self.assertEqual(self.expected_node, node)
-        self.assertEqual(self.expected_canonical_bel, self.graph.node_to_bel(self.expected_node))
-
         modifier = modifier_po_to_dict(result)
         expected_modifier = {
             LOCATION: {NAMESPACE: 'GOCC', NAME: 'intracellular'}
         }
         self.assertEqual(expected_modifier, modifier)
 
-        self.assertHasNode(node, **self.expected_node_data)
+        self.assertIn(self.expected_node, self.graph)
 
 
 class TestGene(TestTokenParserBase):
@@ -101,16 +98,10 @@ class TestGene(TestTokenParserBase):
         }
         self.assertEqual(expected_dict, result.asDict())
 
-        node = node_to_tuple(result)
-        expected_node = cls, ns, val = GENE, 'HGNC', 'AKT1'
-        self.assertEqual(expected_node, node)
+        node = gene('HGNC', 'AKT1')
 
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = 'g(HGNC:AKT1)'
-        self.assertEqual(expected_canonical_bel, canonical_bel)
-
-        self.assertEqual(1, len(self.parser.graph))
-        self.assertHasNode(node, **{FUNCTION: cls, NAMESPACE: ns, NAME: val})
+        self.assertEqual(1, self.parser.graph.number_of_nodes())
+        self.assertHasNode(node, **node)
 
     def test_214b(self):
         statement = 'g(HGNC:AKT1, loc(GOCC:intracellular))'
@@ -129,12 +120,8 @@ class TestGene(TestTokenParserBase):
 
         self.assertEqual(expected_dict, result.asDict())
 
-        expected_node = cls, ns, val = GENE, 'HGNC', 'AKT1'
-        self.assertEqual(expected_node, node_to_tuple(result))
-
-        self.assertEqual('g(HGNC:AKT1)', self.graph.node_to_bel(expected_node))
-
-        self.assertHasNode(expected_node, **{FUNCTION: cls, NAMESPACE: ns, NAME: val})
+        expected_node = gene('HGNC', 'AKT1')
+        self.assertHasNode(expected_node, **expected_node)
 
     def test_214c(self):
         """Test variant"""
@@ -149,27 +136,14 @@ class TestGene(TestTokenParserBase):
         }
         self.assertEqual(expected_result, result.asDict())
 
-        expected_node = GENE, 'HGNC', 'AKT1', (HGVS, TEST_PROTEIN_VARIANT)
-        self.assertEqual(expected_node, node_to_tuple(result))
+        expected_node = gene('HGNC', 'AKT1', variants=hgvs(TEST_PROTEIN_VARIANT))
+        self.assertEqual('g(HGNC:AKT1, var(p.Phe508del))', expected_node.as_bel())
 
-        self.assertEqual(self.parser.graph.node[expected_node], {
-            FUNCTION: GENE,
-            NAMESPACE: 'HGNC',
-            NAME: 'AKT1',
-            VARIANTS: [
-                {
-                    KIND: HGVS,
-                    IDENTIFIER: 'p.Phe508del'
-                }
-            ]
-        })
+        parent = expected_node.get_parent()
+        self.assertIsNotNone(parent)
 
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = 'g(HGNC:AKT1, var(p.Phe508del))'
-        self.assertEqual(expected_canonical_bel, canonical_bel)
-
-        parent = GENE, 'HGNC', 'AKT1'
-        self.assertHasNode(parent, **{FUNCTION: GENE, NAMESPACE: 'HGNC', NAME: 'AKT1'})
+        self.assertHasNode(expected_node, **expected_node)
+        self.assertHasNode(parent, **parent)
         self.assertHasEdge(parent, expected_node, relation=HAS_VARIANT)
 
     def test_gmod(self):
@@ -185,15 +159,14 @@ class TestGene(TestTokenParserBase):
         }
         self.assertEqual(expected_result, result.asDict())
 
-        expected_node = GENE, 'HGNC', 'AKT1', (GMOD, (BEL_DEFAULT_NAMESPACE, 'Me'))
-        self.assertEqual(expected_node, node_to_tuple(result))
+        expected_node = gene('HGNC', 'AKT1', variants=gmod('Me'))
+        self.assertEqual('g(HGNC:AKT1, gmod(Me))', expected_node.as_bel())
+
         self.assertHasNode(expected_node, **{FUNCTION: GENE})
 
-        self.assertEqual('g(HGNC:AKT1, gmod(Me))', self.graph.node_to_bel(expected_node))
-
-        parent = GENE, 'HGNC', 'AKT1'
-        self.assertHasNode(parent, **{FUNCTION: GENE, NAMESPACE: 'HGNC', NAME: 'AKT1'})
-
+        parent = expected_node.get_parent()
+        self.assertIsNotNone(parent)
+        self.assertHasNode(parent, **parent)
         self.assertHasEdge(parent, expected_node, relation=HAS_VARIANT)
 
     def test_214d(self):
@@ -208,18 +181,13 @@ class TestGene(TestTokenParserBase):
         )
 
         self.assertEqual(expected_result, result.asDict())
+        self.assertEqual('g(HGNC:AKT1, var(c.308G>A))', expected_result.as_bel())
 
-        expected_node = node_to_tuple(result)
-        self.assertHasNode(expected_node, **{FUNCTION: GENE})
+        parent = expected_result.get_parent()
+        self.assertIsNotNone(parent)
+        self.assertHasNode(parent, **parent)
 
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = 'g(HGNC:AKT1, var(c.308G>A))'
-        self.assertEqual(expected_canonical_bel, canonical_bel)
-
-        parent = GENE, 'HGNC', 'AKT1'
-        self.assertHasNode(parent, **{FUNCTION: GENE, NAMESPACE: 'HGNC', NAME: 'AKT1'})
-
-        self.assertHasEdge(parent, expected_node, relation=HAS_VARIANT)
+        self.assertHasEdge(parent, expected_result, relation=HAS_VARIANT)
 
     def test_variant_location(self):
         """Test BEL 1.0 gene substitution with location tag"""
@@ -243,15 +211,13 @@ class TestGene(TestTokenParserBase):
         }
         self.assertEqual(expected_result, result.asDict())
 
-        expected_node = node_to_tuple(result)
-        self.assertHasNode(expected_node, **{FUNCTION: GENE, NAMESPACE: 'HGNC', NAME: 'AKT1'})
+        expected_node = gene('HGNC', 'AKT1', variants=hgvs(TEST_GENE_VARIANT))
+        self.assertEqual('g(HGNC:AKT1, var(c.308G>A))', expected_node.as_bel())
+        self.assertHasNode(expected_node, **expected_node)
 
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = 'g(HGNC:AKT1, var(c.308G>A))'
-        self.assertEqual(expected_canonical_bel, canonical_bel)
-
-        parent = GENE, 'HGNC', 'AKT1'
-        self.assertHasNode(parent, **{FUNCTION: GENE, NAMESPACE: 'HGNC', NAME: 'AKT1'})
+        parent = expected_node.get_parent()
+        self.assertIsNotNone(parent)
+        self.assertHasNode(parent, **parent)
 
         self.assertHasEdge(parent, expected_node, relation=HAS_VARIANT)
 
@@ -272,15 +238,15 @@ class TestGene(TestTokenParserBase):
         }
         self.assertEqual(expected_result, result.asDict())
 
-        expected_node = (
-            GENE, 'HGNC', 'AKT1', (HGVS, 'c.1521_1523delCTT'), (HGVS, TEST_GENE_VARIANT), (HGVS, TEST_PROTEIN_VARIANT))
-        self.assertEqual(expected_node, node_to_tuple(result))
+        expected_node = gene('HGNC', 'AKT1',
+                             variants=[hgvs('c.1521_1523delCTT'), hgvs(TEST_GENE_VARIANT), hgvs(TEST_PROTEIN_VARIANT)])
+        self.assertEqual('g(HGNC:AKT1, var(c.1521_1523delCTT), var(c.308G>A), var(p.Phe508del))',
+                         expected_node.as_bel())
         self.assertHasNode(expected_node, function=GENE)
-        self.assertEqual(self.graph.node_to_bel(expected_node),
-                         'g(HGNC:AKT1, var(c.1521_1523delCTT), var(c.308G>A), var(p.Phe508del))')
 
-        parent = GENE, 'HGNC', 'AKT1'
-        self.assertHasNode(parent, **{FUNCTION: GENE, NAMESPACE: 'HGNC', NAME: 'AKT1'})
+        parent = expected_node.get_parent()
+        self.assertIsNotNone(parent)
+        self.assertHasNode(parent, **parent)
 
         self.assertHasEdge(parent, expected_node, relation=HAS_VARIANT)
 
@@ -308,15 +274,14 @@ class TestGene(TestTokenParserBase):
         }
         self.assertEqual(expected_dict, result.asDict())
 
-        expected_node = GENE, ('HGNC', 'TMPRSS2'), ('c', 1, 79), ('HGNC', 'ERG'), ('c', 312, 5034)
-        self.assertEqual(expected_node, node_to_tuple(result))
+        expected_node = gene_fusion(
+            partner_5p=gene('HGNC', 'TMPRSS2'),
+            range_5p=fusion_range('c', 1, 79),
+            partner_3p=gene('HGNC', 'ERG'),
+            range_3p=fusion_range('c', 312, 5034)
+        )
+        self.assertEqual(statement, expected_node.as_bel())
         self.assertHasNode(expected_node)
-
-        self.assertEqual(expected_dict, self.parser.graph.node[expected_node])
-
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = statement
-        self.assertEqual(expected_canonical_bel, canonical_bel)
 
     def test_gene_fusion_2(self):
         self.maxDiff = None
@@ -342,15 +307,14 @@ class TestGene(TestTokenParserBase):
         }
         self.assertEqual(expected_dict, result.asDict())
 
-        expected_node = GENE, ('HGNC', 'TMPRSS2'), ('c', 1, '?'), ('HGNC', 'ERG'), ('c', 312, 5034)
-        self.assertEqual(expected_node, node_to_tuple(result))
+        expected_node = gene_fusion(
+            partner_5p=gene('HGNC', 'TMPRSS2'),
+            range_5p=fusion_range('c', 1, '?'),
+            partner_3p=gene('HGNC', 'ERG'),
+            range_3p=fusion_range('c', 312, 5034)
+        )
+        self.assertEqual(statement, expected_node.as_bel())
         self.assertHasNode(expected_node)
-
-        self.assertEqual(expected_dict, self.parser.graph.node[expected_node])
-
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = statement
-        self.assertEqual(expected_canonical_bel, canonical_bel)
 
     def test_gene_fusion_3(self):
         self.maxDiff = None
@@ -373,15 +337,13 @@ class TestGene(TestTokenParserBase):
         }
         self.assertEqual(expected_dict, result.asDict())
 
-        expected_node = GENE, ('HGNC', 'TMPRSS2'), ('?',), ('HGNC', 'ERG'), ('c', 312, 5034)
-        self.assertEqual(expected_node, node_to_tuple(result))
+        expected_node = gene_fusion(
+            partner_5p=gene('HGNC', 'TMPRSS2'),
+            partner_3p=gene('HGNC', 'ERG'),
+            range_3p=fusion_range('c', 312, 5034)
+        )
+        self.assertEqual(statement, expected_node.as_bel())
         self.assertHasNode(expected_node)
-
-        self.assertEqual(expected_dict, self.parser.graph.node[expected_node])
-
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = statement
-        self.assertEqual(expected_canonical_bel, canonical_bel)
 
     def test_gene_fusion_legacy_1(self):
         self.maxDiff = None
@@ -408,18 +370,15 @@ class TestGene(TestTokenParserBase):
         }
 
         self.assertEqual(expected_dict, result.asDict())
-        expected_node = node_to_tuple(result)
+
+        expected_node = gene_fusion(
+            partner_5p=gene('HGNC', 'BCR'),
+            range_5p=fusion_range('c', '?', 1875),
+            partner_3p=gene('HGNC', 'JAK2'),
+            range_3p=fusion_range('c', 2626, '?')
+        )
+        self.assertEqual('g(fus(HGNC:BCR, c.?_1875, HGNC:JAK2, c.2626_?))', expected_node.as_bel())
         self.assertHasNode(expected_node)
-
-        expected_node = GENE, ('HGNC', 'BCR'), ('c', '?', 1875), ('HGNC', 'JAK2'), ('c', 2626, '?')
-        self.assertEqual(expected_node, node_to_tuple(result))
-        self.assertHasNode(expected_node)
-
-        self.assertEqual(expected_dict, self.parser.graph.node[expected_node])
-
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = 'g(fus(HGNC:BCR, c.?_1875, HGNC:JAK2, c.2626_?))'
-        self.assertEqual(expected_canonical_bel, canonical_bel)
 
     def test_gene_fusion_legacy_2(self):
         statement = 'g(HGNC:CHCHD4, fusion(HGNC:AIFM1))'
@@ -435,18 +394,13 @@ class TestGene(TestTokenParserBase):
             }
         }
         self.assertEqual(expected_dict, result.asDict())
-        expected_node = node_to_tuple(result)
+
+        expected_node = gene_fusion(
+            partner_5p=gene('HGNC', 'CHCHD4'),
+            partner_3p=gene('HGNC', 'AIFM1'),
+        )
+        self.assertEqual('g(fus(HGNC:CHCHD4, ?, HGNC:AIFM1, ?))', expected_node.as_bel())
         self.assertHasNode(expected_node)
-
-        expected_node = GENE, ('HGNC', 'CHCHD4'), ('?',), ('HGNC', 'AIFM1'), ('?',)
-        self.assertEqual(expected_node, node_to_tuple(result))
-        self.assertHasNode(expected_node)
-
-        self.assertEqual(expected_dict, self.parser.graph.node[expected_node])
-
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = 'g(fus(HGNC:CHCHD4, ?, HGNC:AIFM1, ?))'
-        self.assertEqual(expected_canonical_bel, canonical_bel)
 
     def test_gene_variant_snp(self):
         """2.2.2 SNP"""
@@ -456,17 +410,15 @@ class TestGene(TestTokenParserBase):
         expected_result = [GENE, 'SNP', 'rs113993960', [HGVS, 'c.1521_1523delCTT']]
         self.assertEqual(expected_result, result.asList())
 
-        expected_node = node_to_tuple(result)
+        expected_node = gene('SNP', 'rs113993960', variants=hgvs('c.1521_1523delCTT'))
+        self.assertEqual('g(SNP:rs113993960, var(c.1521_1523delCTT))', expected_node.as_bel())
         self.assertHasNode(expected_node)
 
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = 'g(SNP:rs113993960, var(c.1521_1523delCTT))'
-        self.assertEqual(expected_canonical_bel, canonical_bel)
+        parent = expected_node.get_parent()
+        self.assertIsNotNone(parent)
+        self.assertHasNode(parent)
 
-        gene_node = GENE, 'SNP', 'rs113993960'
-        self.assertHasNode(gene_node, **{FUNCTION: GENE, NAMESPACE: 'SNP', NAME: 'rs113993960'})
-
-        self.assertHasEdge(gene_node, expected_node, relation=HAS_VARIANT)
+        self.assertHasEdge(parent, expected_node, relation=HAS_VARIANT)
 
     def test_gene_variant_chromosome(self):
         """2.2.2 chromosome"""
@@ -476,12 +428,15 @@ class TestGene(TestTokenParserBase):
         expected_result = [GENE, 'REF', 'NC_000007.13', [HGVS, 'g.117199646_117199648delCTT']]
         self.assertEqual(expected_result, result.asList())
 
-        gene_node = GENE, 'REF', 'NC_000007.13'
-        expected_node = node_to_tuple(result)
+        gene_node = gene('REF', 'NC_000007.13', variants=hgvs('g.117199646_117199648delCTT'))
+        self.assertEqual(statement, gene_node.as_bel())
+        self.assertHasNode(gene_node, **gene_node)
 
-        self.assertHasNode(gene_node, **{FUNCTION: GENE, NAMESPACE: 'REF', NAME: 'NC_000007.13'})
-        self.assertHasNode(expected_node, function=GENE)
-        self.assertHasEdge(gene_node, expected_node, relation=HAS_VARIANT)
+        parent = gene_node.get_parent()
+        self.assertIsNotNone(parent)
+        self.assertHasNode(parent, **parent)
+
+        self.assertHasEdge(parent, gene_node, relation=HAS_VARIANT)
 
     def test_gene_variant_deletion(self):
         """2.2.2 gene-coding DNA reference sequence"""
@@ -498,18 +453,15 @@ class TestGene(TestTokenParserBase):
         }
         self.assertEqual(expected_result, result.asDict())
 
-        expected_node = (GENE, 'HGNC', 'CFTR', (HGVS, 'c.1521_1523delCTT'))
-        self.assertEqual(expected_node, node_to_tuple(result))
-        self.assertHasNode(expected_node, function=GENE)
+        expected_node = gene('HGNC', 'CFTR', variants=hgvs('c.1521_1523delCTT'))
+        self.assertEqual(statement, expected_node.as_bel())
+        self.assertHasNode(expected_node, **expected_node)
 
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = statement
-        self.assertEqual(expected_canonical_bel, canonical_bel)
+        parent = expected_node.get_parent()
+        self.assertIsNotNone(parent)
+        self.assertHasNode(parent, **parent)
 
-        gene_node = GENE, 'HGNC', 'CFTR'
-        self.assertHasNode(gene_node, **{FUNCTION: GENE, NAMESPACE: 'HGNC', NAME: 'CFTR'})
-
-        self.assertHasEdge(gene_node, expected_node, relation=HAS_VARIANT)
+        self.assertHasEdge(parent, expected_node, relation=HAS_VARIANT)
 
 
 class TestMiRNA(TestTokenParserBase):
@@ -533,11 +485,9 @@ class TestMiRNA(TestTokenParserBase):
 
         self.assertEqual(expected_dict, result.asDict())
 
-        node = node_to_tuple(result)
-        expected_node = MIRNA, 'HGNC', 'MIR21'
-        self.assertEqual(expected_node, node)
-
-        self.assertHasNode(node)
+        node = mirna('HGNC', 'MIR21')
+        self.assertEqual(statement, node.as_bel())
+        self.assertHasNode(node, **node)
 
     def test_long(self):
         statement = 'microRNAAbundance(HGNC:MIR21)'
@@ -553,11 +503,9 @@ class TestMiRNA(TestTokenParserBase):
 
         self.assertEqual(expected_dict, result.asDict())
 
-        node = node_to_tuple(result)
-        expected_node = MIRNA, 'HGNC', 'MIR21'
-        self.assertEqual(expected_node, node)
-
-        self.assertHasNode(node)
+        expected_node = mirna('HGNC', 'MIR21')
+        self.assertEqual('m(HGNC:MIR21)', expected_node.as_bel())
+        self.assertHasNode(expected_node)
 
     def test_mirna_location(self):
         statement = 'm(HGNC:MIR21,loc(GOCC:intracellular))'
@@ -574,11 +522,9 @@ class TestMiRNA(TestTokenParserBase):
         }
         self.assertEqual(expected_dict, result.asDict())
 
-        node = node_to_tuple(result)
-        expected_node = MIRNA, 'HGNC', 'MIR21'
-        self.assertEqual(expected_node, node)
-
-        self.assertHasNode(node)
+        expected_node = mirna('HGNC', 'MIR21')
+        self.assertEqual('m(HGNC:MIR21)', expected_node.as_bel())
+        self.assertHasNode(expected_node)
 
     def test_mirna_variant(self):
         statement = 'm(HGNC:MIR21,var(p.Phe508del))'
@@ -597,15 +543,17 @@ class TestMiRNA(TestTokenParserBase):
         }
         self.assertEqual(expected_dict, result.asDict())
 
-        node = node_to_tuple(result)
-        self.assertHasNode(node)
+        self.assertEqual(2, self.graph.number_of_nodes())
 
-        self.assertEqual(2, self.parser.graph.number_of_nodes())
+        expected_node = mirna('HGNC', 'MIR21', variants=hgvs(TEST_PROTEIN_VARIANT))
+        self.assertEqual('m(HGNC:MIR21, var(p.Phe508del))', expected_node.as_bel())
+        self.assertHasNode(expected_node)
 
-        expected_parent = MIRNA, 'HGNC', 'MIR21'
-        self.assertHasNode(expected_parent)
+        parent = expected_node.get_parent()
+        self.assertIsNotNone(parent)
+        self.assertHasNode(parent)
 
-        self.assertHasEdge(expected_parent, node, relation=HAS_VARIANT)
+        self.assertHasEdge(parent, expected_node, relation=HAS_VARIANT)
 
     def test_mirna_variant_location(self):
         statement = 'm(HGNC:MIR21,var(p.Phe508del),loc(GOCC:intracellular))'
@@ -618,7 +566,7 @@ class TestMiRNA(TestTokenParserBase):
             VARIANTS: [
                 {
                     KIND: HGVS,
-                    IDENTIFIER: 'p.Phe508del'
+                    IDENTIFIER: TEST_PROTEIN_VARIANT
                 },
             ],
             LOCATION: {
@@ -628,15 +576,17 @@ class TestMiRNA(TestTokenParserBase):
         }
         self.assertEqual(expected_dict, result.asDict())
 
-        node = node_to_tuple(result)
-        self.assertHasNode(node)
+        self.assertEqual(2, self.graph.number_of_nodes())
 
-        self.assertEqual(2, self.parser.graph.number_of_nodes())
+        expected_node = mirna('HGNC', 'MIR21', variants=hgvs(TEST_PROTEIN_VARIANT))
+        self.assertEqual('m(HGNC:MIR21, var(p.Phe508del))', expected_node.as_bel())
+        self.assertHasNode(expected_node)
 
-        expected_parent = MIRNA, 'HGNC', 'MIR21'
-        self.assertHasNode(expected_parent)
+        parent = expected_node.get_parent()
+        self.assertIsNotNone(parent)
+        self.assertHasNode(parent)
 
-        self.assertHasEdge(expected_parent, node, relation=HAS_VARIANT)
+        self.assertHasEdge(parent, expected_node, relation=HAS_VARIANT)
 
 
 class TestProtein(TestTokenParserBase):
@@ -644,6 +594,8 @@ class TestProtein(TestTokenParserBase):
 
     def setUp(self):
         self.parser.clear()
+
+        # Just activate and streamline the protein parser
         self.parser.protein.setParseAction(self.parser.handle_term)
 
     def test_216a(self):
@@ -660,14 +612,9 @@ class TestProtein(TestTokenParserBase):
         }
         self.assertEqual(expected_dict, result.asDict())
 
-        node = node_to_tuple(result)
-        expected_node = PROTEIN, 'HGNC', 'AKT1'
-        self.assertEqual(expected_node, node)
-        self.assertHasNode(node)
-
-        canonical_bel = self.graph.node_to_bel(node)
-        expected_canonical_bel = statement
-        self.assertEqual(expected_canonical_bel, canonical_bel)
+        expected_node = protein('HGNC', 'AKT1')
+        self.assertEqual(statement, expected_node.as_bel())
+        self.assertHasNode(expected_node)
 
     def test_protein_wLocation(self):
         statement = 'p(HGNC:AKT1, loc(GOCC:intracellular))'
@@ -686,14 +633,9 @@ class TestProtein(TestTokenParserBase):
 
         self.assertEqual(expected_dict, result.asDict())
 
-        node = node_to_tuple(result)
-        expected_node = PROTEIN, 'HGNC', 'AKT1'
-        self.assertEqual(expected_node, node)
-        self.assertHasNode(node, **{FUNCTION: PROTEIN, NAMESPACE: 'HGNC', NAME: 'AKT1'})
-
-        canonical_bel = self.graph.node_to_bel(node)
-        expected_canonical_bel = 'p(HGNC:AKT1)'
-        self.assertEqual(expected_canonical_bel, canonical_bel)
+        expected_node = protein('HGNC', 'AKT1')
+        self.assertEqual(statement, expected_node.as_bel())
+        self.assertHasNode(expected_node)
 
     def test_multiVariant(self):
         statement = 'p(HGNC:AKT1,sub(A,127,Y),pmod(Ph, Ser),loc(GOCC:intracellular))'
@@ -716,16 +658,13 @@ class TestProtein(TestTokenParserBase):
 
         self.assertEqual(expected_dict, result.asDict())
 
-        node = (PROTEIN, 'HGNC', 'AKT1', (HGVS, 'p.Ala127Tyr'), (PMOD, (BEL_DEFAULT_NAMESPACE, 'Ph'), 'Ser'))
-        self.assertEqual(node, node_to_tuple(result))
-        self.assertHasNode(node, function=PROTEIN)
+        node = protein('HGNC', 'AKT1', variants=[protein_substitution('Ala', 127, 'Tyr'), pmod(name='Ph', code='Ser')])
+        self.assertEqual('p(HGNC:AKT1, pmod(Ph, Ser), var(p.Ala127Tyr))', node.as_bel())
+        self.assertHasNode(node, **node)
 
-        canonical_bel = self.graph.node_to_bel(node)
-        expected_canonical_bel = 'p(HGNC:AKT1, pmod(Ph, Ser), var(p.Ala127Tyr))'
-        self.assertEqual(expected_canonical_bel, canonical_bel)
-
-        parent = PROTEIN, 'HGNC', 'AKT1'
-        self.assertHasNode(parent, **{FUNCTION: PROTEIN, NAMESPACE: 'HGNC', NAME: 'AKT1'})
+        parent = node.get_parent()
+        self.assertIsNotNone(parent)
+        self.assertHasNode(parent, **parent)
         self.assertHasEdge(parent, node, relation=HAS_VARIANT)
 
     def test_protein_fusion_1(self):
@@ -752,15 +691,17 @@ class TestProtein(TestTokenParserBase):
         }
         self.assertEqual(expected_dict, result.asDict())
 
-        expected_node = PROTEIN, ('HGNC', 'TMPRSS2'), ('p', 1, 79), ('HGNC', 'ERG'), ('p', 312, 5034)
-        self.assertEqual(expected_node, node_to_tuple(result))
+        expected_node = protein_fusion(
+            partner_5p=protein('HGNC', 'TMPRSS2'),
+            partner_3p=protein('HGNC', 'ERG'),
+            range_5p=fusion_range('p', 1, 79),
+            range_3p=fusion_range('p', 312, 5034)
+        )
+        self.assertEqual(statement, expected_node.as_bel())
         self.assertHasNode(expected_node)
 
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = statement
-        self.assertEqual(expected_canonical_bel, canonical_bel)
-
     def test_protein_fusion_legacy_1(self):
+        """Tests parsing of a BEL v1.0 protein fusion that contains a 5P stop adn 3P start"""
         self.maxDiff = None
         statement = 'p(HGNC:BCR, fus(HGNC:JAK2, 1875, 2626))'
         result = self.parser.protein.parseString(statement)
@@ -784,14 +725,16 @@ class TestProtein(TestTokenParserBase):
                 }
             }
         }
-
         self.assertEqual(expected_dict, result.asDict())
-        expected_node = node_to_tuple(result)
-        self.assertHasNode(expected_node)
 
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = 'p(fus(HGNC:BCR, p.?_1875, HGNC:JAK2, p.2626_?))'
-        self.assertEqual(expected_canonical_bel, canonical_bel)
+        expected_node = protein_fusion(
+            partner_5p=protein('HGNC', 'BCR'),
+            partner_3p=protein('HGNC', 'JAK2'),
+            range_5p=fusion_range('p', '?', 1875),
+            range_3p=fusion_range('p', 2626, '?')
+        )
+        self.assertEqual('p(fus(HGNC:BCR, p.?_1875, HGNC:JAK2, p.2626_?))', expected_node.as_bel())
+        self.assertHasNode(expected_node)
 
     def test_protein_fusion_legacy_2(self):
         statement = 'p(HGNC:CHCHD4, fusion(HGNC:AIFM1))'
@@ -808,30 +751,18 @@ class TestProtein(TestTokenParserBase):
         }
         self.assertEqual(expected_dict, result.asDict())
 
-        expected_node = PROTEIN, ('HGNC', 'CHCHD4'), ('?',), ('HGNC', 'AIFM1'), ('?',)
-        self.assertEqual(expected_node, node_to_tuple(result))
+        expected_node = protein_fusion(partner_5p=protein('HGNC', 'CHCHD4'), partner_3p=protein('HGNC', 'AIFM1'))
+        self.assertEqual('p(fus(HGNC:CHCHD4, ?, HGNC:AIFM1, ?))', expected_node.as_bel())
         self.assertHasNode(expected_node)
-
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = 'p(fus(HGNC:CHCHD4, ?, HGNC:AIFM1, ?))'
-        self.assertEqual(expected_canonical_bel, canonical_bel)
 
     def test_protein_trunc_1(self):
         statement = 'p(HGNC:AKT1, trunc(40))'
         result = self.parser.protein.parseString(statement)
 
-        expected_node = PROTEIN, 'HGNC', 'AKT1', (HGVS, 'p.40*')
-        self.assertEqual(expected_node, node_to_tuple(result))
-        self.assertHasNode(expected_node, **{FUNCTION: PROTEIN})
-
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = 'p(HGNC:AKT1, var(p.40*))'
-        self.assertEqual(expected_canonical_bel, canonical_bel)
-
-        protein_node = PROTEIN, 'HGNC', 'AKT1'
-        self.assertHasNode(protein_node, **{FUNCTION: PROTEIN, NAMESPACE: 'HGNC', NAME: 'AKT1'})
-
-        self.assertHasEdge(protein_node, expected_node, relation=HAS_VARIANT)
+        node = protein('HGNC', 'AKT1', variants=hgvs('p.40*')) #FIXME replace with truncation?
+        self.assertEqual('p(HGNC:AKT1, var(p.40*))', node.as_bel())
+        self.assertHasNode(node, **{FUNCTION: PROTEIN})
+        self.help_test_parent_in_graph(node)
 
     def test_protein_trunc_2(self):
         statement = 'p(HGNC:AKT1, var(p.Cys40*))'
@@ -840,18 +771,10 @@ class TestProtein(TestTokenParserBase):
         expected_result = [PROTEIN, 'HGNC', 'AKT1', [HGVS, 'p.Cys40*']]
         self.assertEqual(expected_result, result.asList())
 
-        expected_node = PROTEIN, 'HGNC', 'AKT1', (HGVS, 'p.Cys40*')
-        self.assertEqual(expected_node, node_to_tuple(result))
-        self.assertHasNode(expected_node, **{FUNCTION: PROTEIN, NAMESPACE: 'HGNC', NAME: 'AKT1'})
-
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = 'p(HGNC:AKT1, var(p.Cys40*))'
-        self.assertEqual(expected_canonical_bel, canonical_bel)
-
-        protein_node = cls, ns, val = PROTEIN, 'HGNC', 'AKT1'
-        self.assertHasNode(protein_node, **{FUNCTION: PROTEIN, NAMESPACE: ns, NAME: val})
-
-        self.assertHasEdge(protein_node, expected_node, relation=HAS_VARIANT)
+        node = protein('HGNC', 'AKT1',variants=hgvs('p.Cys40*'))
+        self.assertEqual(statement, node.as_bel())
+        self.assertHasNode(node, **{FUNCTION: PROTEIN})
+        self.help_test_parent_in_graph(node)
 
     def test_protein_trunc_3(self):
         statement = 'p(HGNC:AKT1, var(p.Arg1851*))'
@@ -860,89 +783,50 @@ class TestProtein(TestTokenParserBase):
         expected_result = [PROTEIN, 'HGNC', 'AKT1', [HGVS, 'p.Arg1851*']]
         self.assertEqual(expected_result, result.asList())
 
-        expected_node = PROTEIN, 'HGNC', 'AKT1', (HGVS, 'p.Arg1851*')
-        self.assertEqual(expected_node, node_to_tuple(result))
-        self.assertHasNode(expected_node, **{FUNCTION: PROTEIN, NAMESPACE: 'HGNC', NAME: 'AKT1'})
-
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = statement
-        self.assertEqual(expected_canonical_bel, canonical_bel)
-
-        protein_node = cls, ns, val = PROTEIN, 'HGNC', 'AKT1'
-        self.assertHasNode(protein_node, **{FUNCTION: PROTEIN, NAMESPACE: ns, NAME: val})
-
-        self.assertHasEdge(protein_node, expected_node, relation=HAS_VARIANT)
+        node = protein('HGNC', 'AKT1', variants=hgvs('p.Arg1851*'))
+        self.assertEqual(statement, node.as_bel())
+        self.assertHasNode(node, **{FUNCTION: PROTEIN})
+        self.help_test_parent_in_graph(node)
 
     def test_protein_pmod_1(self):
         """2.2.1 Test default BEL namespace and 1-letter amino acid code:"""
         statement = 'p(HGNC:AKT1, pmod(Ph, S, 473))'
-        result = self.parser.protein.parseString(statement)
+        self.parser.protein.parseString(statement)
 
-        expected_node = (PROTEIN, 'HGNC', 'AKT1', (PMOD, (BEL_DEFAULT_NAMESPACE, 'Ph'), 'Ser', 473))
-        self.assertEqual(expected_node, node_to_tuple(result))
-        self.assertHasNode(expected_node, **{FUNCTION: PROTEIN, NAMESPACE: 'HGNC', NAME: 'AKT1'})
-
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = 'p(HGNC:AKT1, pmod(Ph, Ser, 473))'
-        self.assertEqual(expected_canonical_bel, canonical_bel)
-
-        protein_node = PROTEIN, 'HGNC', 'AKT1'
-        self.assertHasNode(protein_node, **{FUNCTION: PROTEIN, NAMESPACE: 'HGNC', NAME: 'AKT1'})
-        self.assertHasEdge(protein_node, expected_node, relation=HAS_VARIANT)
+        node = protein('HGNC', 'AKT1', variants=pmod('Ph', code='Ser', position=473))
+        self.assertEqual('p(HGNC:AKT1, pmod(Ph, Ser, 473))', node.as_bel())
+        self.assertHasNode(node, **node)
+        self.help_test_parent_in_graph(node)
 
     def test_protein_pmod_2(self):
         """2.2.1 Test default BEL namespace and 3-letter amino acid code:"""
         statement = 'p(HGNC:AKT1, pmod(Ph, Ser, 473))'
         result = self.parser.protein.parseString(statement)
 
-        expected_node = PROTEIN, 'HGNC', 'AKT1', (PMOD, (BEL_DEFAULT_NAMESPACE, 'Ph'), 'Ser', 473)
-        self.assertEqual(expected_node, node_to_tuple(result))
-        self.assertHasNode(expected_node, **{FUNCTION: PROTEIN})
-
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = 'p(HGNC:AKT1, pmod(Ph, Ser, 473))'
-        self.assertEqual(expected_canonical_bel, canonical_bel)
-
-        protein_node = PROTEIN, 'HGNC', 'AKT1'
-        self.assertHasNode(protein_node, **{FUNCTION: PROTEIN, NAMESPACE: 'HGNC', NAME: 'AKT1'})
-
-        self.assertHasEdge(protein_node, expected_node, relation=HAS_VARIANT)
+        node = protein('HGNC', 'AKT1', variants=pmod('Ph', code='Ser', position=473))
+        self.assertEqual('p(HGNC:AKT1, pmod(Ph, Ser, 473))', node.as_bel())
+        self.assertHasNode(node, **node)
+        self.help_test_parent_in_graph(node)
 
     def test_protein_pmod_3(self):
         """2.2.1 Test PSI-MOD namespace and 3-letter amino acid code:"""
         statement = 'p(HGNC:AKT1, pmod(MOD:PhosRes, Ser, 473))'
         result = self.parser.protein.parseString(statement)
 
-        expected_node = PROTEIN, 'HGNC', 'AKT1', (PMOD, ('MOD', 'PhosRes'), 'Ser', 473)
-        self.assertEqual(expected_node, node_to_tuple(result))
-        self.assertHasNode(expected_node)
-
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = statement
-        self.assertEqual(expected_canonical_bel, canonical_bel)
-
-        protein_node = PROTEIN, 'HGNC', 'AKT1'
-        self.assertHasNode(protein_node, **{FUNCTION: PROTEIN, NAMESPACE: 'HGNC', NAME: 'AKT1'})
-
-        self.assertHasEdge(protein_node, expected_node, relation=HAS_VARIANT)
+        node = protein('HGNC', 'AKT1', variants=pmod(namespace='MOD', name='PhosRes', code='Ser', position=473))
+        self.assertEqual(statement, node.as_bel())
+        self.assertHasNode(node)
+        self.help_test_parent_in_graph(node)
 
     def test_protein_pmod_4(self):
         """2.2.1 Test HRAS palmitoylated at an unspecified residue. Default BEL namespace"""
         statement = 'p(HGNC:HRAS, pmod(Palm))'
         result = self.parser.protein.parseString(statement)
 
-        expected_node = PROTEIN, 'HGNC', 'HRAS', (PMOD, (BEL_DEFAULT_NAMESPACE, 'Palm'))
-        self.assertEqual(expected_node, node_to_tuple(result))
-        self.assertHasNode(expected_node, **{FUNCTION: PROTEIN})
-
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = statement
-        self.assertEqual(expected_canonical_bel, canonical_bel)
-
-        protein_node = PROTEIN, 'HGNC', 'HRAS'
-        self.assertHasNode(protein_node, **{FUNCTION: PROTEIN, NAMESPACE: 'HGNC', NAME: 'HRAS'})
-
-        self.assertHasEdge(protein_node, expected_node, relation=HAS_VARIANT)
+        node = protein('HGNC', 'HRAS', variants=pmod('Palm'))
+        self.assertEqual(statement, node.as_bel())
+        self.assertHasNode(node, **node)
+        self.help_test_parent_in_graph(node)
 
     def test_protein_variant_reference(self):
         """2.2.2 Test reference allele"""
@@ -951,18 +835,10 @@ class TestProtein(TestTokenParserBase):
         expected_result = [PROTEIN, 'HGNC', 'CFTR', [HGVS, '=']]
         self.assertEqual(expected_result, result.asList())
 
-        expected_node = PROTEIN, 'HGNC', 'CFTR', (HGVS, '=')
-        self.assertEqual(expected_node, node_to_tuple(result))
-        self.assertHasNode(expected_node, **{FUNCTION: PROTEIN})
-
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = statement
-        self.assertEqual(expected_canonical_bel, canonical_bel)
-
-        protein_node = PROTEIN, 'HGNC', 'CFTR'
-        self.assertHasNode(protein_node, **{FUNCTION: PROTEIN, NAMESPACE: 'HGNC', NAME: 'CFTR'})
-
-        self.assertHasEdge(protein_node, expected_node, relation=HAS_VARIANT)
+        node = protein('HGNC', 'CFTR', variants=hgvs_reference())
+        self.assertEqual(statement, node.as_bel())
+        self.assertHasNode(node, **node)
+        self.help_test_parent_in_graph(node)
 
     def test_protein_variant_unspecified(self):
         """2.2.2 Test unspecified variant"""
@@ -972,18 +848,10 @@ class TestProtein(TestTokenParserBase):
         expected_result = [PROTEIN, 'HGNC', 'CFTR', [HGVS, '?']]
         self.assertEqual(expected_result, result.asList())
 
-        expected_node = PROTEIN, 'HGNC', 'CFTR', (HGVS, '?')
-        self.assertEqual(expected_node, node_to_tuple(result))
-        self.assertHasNode(expected_node, **{FUNCTION: PROTEIN})
-
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = statement
-        self.assertEqual(expected_canonical_bel, canonical_bel)
-
-        protein_node = PROTEIN, 'HGNC', 'CFTR'
-        self.assertHasNode(protein_node, **{FUNCTION: PROTEIN, NAMESPACE: 'HGNC', NAME: 'CFTR'})
-
-        self.assertHasEdge(protein_node, expected_node, relation=HAS_VARIANT)
+        node = protein('HGNC', 'CFTR', variants=hgvs_unspecified())
+        self.assertEqual(statement, node.as_bel())
+        self.assertHasNode(node, **node)
+        self.help_test_parent_in_graph(node)
 
     def test_protein_variant_substitution(self):
         """2.2.2 Test substitution"""
@@ -992,17 +860,10 @@ class TestProtein(TestTokenParserBase):
         expected_result = [PROTEIN, 'HGNC', 'CFTR', [HGVS, 'p.Gly576Ala']]
         self.assertEqual(expected_result, result.asList())
 
-        expected_node = node_to_tuple(result)
-        self.assertHasNode(expected_node, **{FUNCTION: PROTEIN})
-
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = statement
-        self.assertEqual(expected_canonical_bel, canonical_bel)
-
-        protein_node = PROTEIN, 'HGNC', 'CFTR'
-        self.assertHasNode(protein_node, **{FUNCTION: PROTEIN, NAMESPACE: 'HGNC', NAME: 'CFTR'})
-
-        self.assertHasEdge(protein_node, expected_node, relation=HAS_VARIANT)
+        node = protein('HGNC', 'CFTR', variants=protein_substitution('Gly', 576, 'Ala'))
+        self.assertEqual(statement, node.as_bel())
+        self.assertHasNode(node, **node)
+        self.help_test_parent_in_graph(node)
 
     def test_protein_variant_deletion(self):
         """2.2.2 deletion"""
@@ -1012,109 +873,60 @@ class TestProtein(TestTokenParserBase):
         expected_result = [PROTEIN, 'HGNC', 'CFTR', [HGVS, TEST_PROTEIN_VARIANT]]
         self.assertEqual(expected_result, result.asList())
 
-        expected_node = node_to_tuple(result)
-        self.assertHasNode(expected_node)
-
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = statement
-        self.assertEqual(expected_canonical_bel, canonical_bel)
-
-        protein_node = PROTEIN, 'HGNC', 'CFTR'
-        self.assertHasNode(protein_node, **{FUNCTION: PROTEIN, NAMESPACE: 'HGNC', NAME: 'CFTR'})
-
-        self.assertHasEdge(protein_node, expected_node, relation=HAS_VARIANT)
+        node = protein('HGNC', 'CFTR', variants=protein_deletion('Phe', 508))
+        self.assertEqual(statement, node.as_bel())
+        self.assertHasNode(node, **node)
+        self.help_test_parent_in_graph(node)
 
     def test_protein_fragment_known(self):
         """2.2.3 fragment with known start/stop"""
         statement = 'p(HGNC:YFG, frag(5_20))'
         result = self.parser.protein.parseString(statement)
 
-        expected_node = PROTEIN, 'HGNC', 'YFG', (FRAGMENT, (5, 20))
-        self.assertEqual(expected_node, node_to_tuple(result))
-        self.assertHasNode(expected_node, **{FUNCTION: PROTEIN})
-
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = statement
-        self.assertEqual(expected_canonical_bel, canonical_bel)
-
-        protein_node = PROTEIN, 'HGNC', 'YFG'
-        self.assertHasNode(protein_node, **{FUNCTION: PROTEIN, NAMESPACE: 'HGNC', NAME: 'YFG'})
-
-        self.assertHasEdge(protein_node, expected_node, relation=HAS_VARIANT)
+        node = protein('HGNC', 'YFG', variants=fragment(5, 20))
+        self.assertEqual(statement, node.as_bel())
+        self.assertHasNode(node, **node)
+        self.help_test_parent_in_graph(node)
 
     def test_protein_fragment_unbounded(self):
         """2.2.3 amino-terminal fragment of unknown length"""
         statement = 'p(HGNC:YFG, frag(1_?))'
         result = self.parser.protein.parseString(statement)
 
-        expected_node = PROTEIN, 'HGNC', 'YFG', (FRAGMENT, (1, '?'))
-        self.assertEqual(expected_node, node_to_tuple(result))
-        self.assertHasNode(expected_node, **{FUNCTION: PROTEIN})
-
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = statement
-        self.assertEqual(expected_canonical_bel, canonical_bel)
-
-        protein_node = PROTEIN, 'HGNC', 'YFG'
-        self.assertHasNode(protein_node, **{FUNCTION: PROTEIN, NAMESPACE: 'HGNC', NAME: 'YFG'})
-
-        self.assertHasEdge(protein_node, expected_node, relation=HAS_VARIANT)
+        node = protein('HGNC', 'YFG', variants=fragment(start=1))
+        self.assertEqual(statement, node.as_bel())
+        self.assertHasNode(node, **node)
+        self.help_test_parent_in_graph(node)
 
     def test_protein_fragment_unboundTerminal(self):
         """2.2.3 carboxyl-terminal fragment of unknown length"""
         statement = 'p(HGNC:YFG, frag(?_*))'
         result = self.parser.protein.parseString(statement)
 
-        expected_node = PROTEIN, 'HGNC', 'YFG', (FRAGMENT, ('?', '*'))
-        self.assertEqual(expected_node, node_to_tuple(result))
-        self.assertHasNode(expected_node, **{FUNCTION: PROTEIN})
-
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = statement
-        self.assertEqual(expected_canonical_bel, canonical_bel)
-
-        protein_node = PROTEIN, 'HGNC', 'YFG'
-        self.assertHasNode(protein_node, **{FUNCTION: PROTEIN, NAMESPACE: 'HGNC', NAME: 'YFG'})
-
-        self.assertHasEdge(protein_node, expected_node, relation=HAS_VARIANT)
+        node = protein('HGNC', 'YFG', variants=fragment(stop='*'))
+        self.assertEqual(statement, node.as_bel())
+        self.assertHasNode(node, **node)
+        self.help_test_parent_in_graph(node)
 
     def test_protein_fragment_unknown(self):
         """2.2.3 fragment with unknown start/stop"""
         statement = 'p(HGNC:YFG, frag(?))'
         result = self.parser.protein.parseString(statement)
 
-        expected_result = [PROTEIN, 'HGNC', 'YFG', [FRAGMENT, '?']]
-        self.assertEqual(expected_result, result.asList())
-
-        expected_node = node_to_tuple(result)
-        self.assertHasNode(expected_node, **{FUNCTION: PROTEIN})
-
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = statement
-        self.assertEqual(expected_canonical_bel, canonical_bel)
-
-        protein_node = PROTEIN, 'HGNC', 'YFG'
-        self.assertHasNode(protein_node, **{FUNCTION: PROTEIN, NAMESPACE: 'HGNC', NAME: 'YFG'})
-
-        self.assertHasEdge(protein_node, expected_node, relation=HAS_VARIANT)
+        node = protein('HGNC', 'YFG', variants=fragment())
+        self.assertEqual(statement, node.as_bel())
+        self.assertHasNode(node, **node)
+        self.help_test_parent_in_graph(node)
 
     def test_protein_fragment_descriptor(self):
         """2.2.3 fragment with unknown start/stop and a descriptor"""
         statement = 'p(HGNC:YFG, frag(?, "55kD"))'
         result = self.parser.protein.parseString(statement)
 
-        expected_node = PROTEIN, 'HGNC', 'YFG', (FRAGMENT, '?', '55kD')
-        self.assertEqual(expected_node, node_to_tuple(result))
-        self.assertHasNode(expected_node, **{FUNCTION: PROTEIN})
-
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = statement
-        self.assertEqual(expected_canonical_bel, canonical_bel)
-
-        protein_node = PROTEIN, 'HGNC', 'YFG'
-        self.assertHasNode(protein_node, **{FUNCTION: PROTEIN, NAMESPACE: 'HGNC', NAME: 'YFG'})
-
-        self.assertHasEdge(protein_node, expected_node, relation=HAS_VARIANT)
+        node = protein('HGNC', 'YFG', variants=fragment(description='55kD'))
+        self.assertEqual(statement, node.as_bel())
+        self.assertHasNode(node, **node)
+        self.help_test_parent_in_graph(node)
 
     def test_ensure_no_dup_edges(self):
         """Ensure node and edges aren't added twice, even if from different statements and has origin completion"""
@@ -1124,12 +936,11 @@ class TestProtein(TestTokenParserBase):
         self.parser.bel_term.parseString(s1)
         self.parser.bel_term.parseString(s2)
 
-        protein = PROTEIN, 'HGNC', 'AKT1'
+        node = protein('HGNC', 'AKT1')
 
         self.assertEqual(1, self.parser.graph.number_of_nodes())
-        self.assertHasNode(protein, **{FUNCTION: PROTEIN, NAMESPACE: 'HGNC', NAME: 'AKT1'})
-
         self.assertEqual(0, self.parser.graph.number_of_edges())
+        self.assertHasNode(node)
 
 
 class TestRna(TestTokenParserBase):
@@ -1153,13 +964,10 @@ class TestRna(TestTokenParserBase):
         }
         self.assertEqual(expected_dict, result.asDict())
 
-        expected_node = RNA, 'HGNC', 'AKT1'
-        self.assertEqual(expected_node, node_to_tuple(result))
-        self.assertHasNode(expected_node, **{FUNCTION: RNA, NAMESPACE: 'HGNC', NAME: 'AKT1'})
+        expected_node = rna('HGNC', 'AKT1')
+        self.assertEqual(statement, expected_node.as_bel())
+        self.assertHasNode(expected_node)
 
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = statement
-        self.assertEqual(expected_canonical_bel, canonical_bel)
 
     def test_214e(self):
         """Test multiple variants"""
@@ -1177,18 +985,10 @@ class TestRna(TestTokenParserBase):
         }
         self.assertEqual(expected_result, result.asDict())
 
-        expected_node = (RNA, 'HGNC', 'AKT1', (HGVS, 'c.1521_1523delCTT'), (HGVS, TEST_PROTEIN_VARIANT))
-        self.assertEqual(expected_node, node_to_tuple(result))
-        self.assertHasNode(expected_node, **{FUNCTION: RNA})
-
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = 'r(HGNC:AKT1, var(c.1521_1523delCTT), var(p.Phe508del))'  # sorted
-        self.assertEqual(expected_canonical_bel, canonical_bel)
-
-        parent = RNA, 'HGNC', 'AKT1'
-        self.assertHasNode(parent, **{FUNCTION: RNA, NAMESPACE: 'HGNC', NAME: 'AKT1'})
-
-        self.assertHasEdge(parent, expected_node, relation=HAS_VARIANT)
+        node = rna('HGNC', 'AKT1', variants= [hgvs('c.1521_1523delCTT'), hgvs(TEST_PROTEIN_VARIANT)])
+        self.assertEqual('r(HGNC:AKT1, var(c.1521_1523delCTT), var(p.Phe508del))', node.as_bel())
+        self.assertHasNode(node, **node)
+        self.help_test_parent_in_graph(node)
 
     def test_rna_fusion_1(self):
         """2.6.1 RNA abundance of fusion with known breakpoints"""
@@ -1215,12 +1015,14 @@ class TestRna(TestTokenParserBase):
         }
         self.assertEqual(expected_dict, result.asDict())
 
-        expected_node = node_to_tuple(result)
+        expected_node  = rna_fusion(
+            partner_5p=rna('HGNC', 'TMPRSS2'),
+            partner_3p=rna('HGNC', 'ERG'),
+            range_5p=fusion_range('r', 1, 79),
+            range_3p=fusion_range('r', 312, 5034)
+        )
+        self.assertEqual(statement, expected_node.as_bel())
         self.assertHasNode(expected_node)
-
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = statement
-        self.assertEqual(expected_canonical_bel, canonical_bel)
 
     def test_rna_fusion_2(self):
         """2.6.1 RNA abundance of fusion with unspecified breakpoints"""
@@ -1242,11 +1044,12 @@ class TestRna(TestTokenParserBase):
         }
         self.assertEqual(expected_dict, result.asDict())
 
-        expected_node = node_to_tuple(result)
-
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = statement
-        self.assertEqual(expected_canonical_bel, canonical_bel)
+        expected_node = rna_fusion(
+            partner_5p=rna('HGNC', 'TMPRSS2'),
+            partner_3p=rna('HGNC', 'ERG'),
+        )
+        self.assertEqual(statement, expected_node.as_bel())
+        self.assertHasNode(expected_node)
 
     def test_rna_fusion_legacy_1(self):
         statement = 'r(HGNC:BCR, fus(HGNC:JAK2, 1875, 2626))'
@@ -1273,12 +1076,14 @@ class TestRna(TestTokenParserBase):
         }
         self.assertEqual(expected_dict, result.asDict())
 
-        expected_node = node_to_tuple(result)
+        expected_node = rna_fusion(
+            partner_5p=rna('HGNC', 'BCR'),
+            partner_3p=rna('HGNC', 'JAK2'),
+            range_5p=fusion_range('r', '?', 1875),
+            range_3p=fusion_range('r', 2626, '?')
+        )
+        self.assertEqual('r(fus(HGNC:BCR, r.?_1875, HGNC:JAK2, r.2626_?))', expected_node.as_bel())
         self.assertHasNode(expected_node)
-
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = 'r(fus(HGNC:BCR, r.?_1875, HGNC:JAK2, r.2626_?))'
-        self.assertEqual(expected_canonical_bel, canonical_bel)
 
     def test_rna_fusion_legacy_2(self):
         statement = 'r(HGNC:CHCHD4, fusion(HGNC:AIFM1))'
@@ -1295,12 +1100,12 @@ class TestRna(TestTokenParserBase):
         }
         self.assertEqual(expected_dict, result.asDict())
 
-        expected_node = node_to_tuple(result)
+        expected_node = rna_fusion(
+            partner_5p=rna('HGNC', 'CHCHD4'),
+            partner_3p=rna('HGNC', 'AIFM1'),
+        )
+        self.assertEqual('r(fus(HGNC:CHCHD4, ?, HGNC:AIFM1, ?))', expected_node.as_bel())
         self.assertHasNode(expected_node)
-
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = 'r(fus(HGNC:CHCHD4, ?, HGNC:AIFM1, ?))'
-        self.assertEqual(expected_canonical_bel, canonical_bel)
 
     def test_rna_variant_codingReference(self):
         """2.2.2 RNA coding reference sequence"""
@@ -1315,17 +1120,10 @@ class TestRna(TestTokenParserBase):
         }
         self.assertEqual(expected_dict, result.asDict())
 
-        expected_node = node_to_tuple(result)
-        self.assertHasNode(expected_node)
-
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = statement
-        self.assertEqual(expected_canonical_bel, canonical_bel)
-
-        rna_node = RNA, 'HGNC', 'CFTR'
-        self.assertHasNode(rna_node, **{FUNCTION: RNA, NAMESPACE: 'HGNC', NAME: 'CFTR'})
-
-        self.assertHasEdge(rna_node, expected_node, relation=HAS_VARIANT)
+        node = rna('HGNC', 'CFTR', variants=hgvs('r.1521_1523delcuu'))
+        self.assertEqual(statement, node.as_bel())
+        self.assertHasNode(node)
+        self.help_test_parent_in_graph(node)
 
 
 class TestComplex(TestTokenParserBase):
@@ -1349,17 +1147,9 @@ class TestComplex(TestTokenParserBase):
         }
         self.assertEqual(expected_dict, result.asDict())
 
-        expected_node = COMPLEX, 'SCOMP', 'AP-1 Complex'
-        self.assertEqual(expected_node, node_to_tuple(result))
-        self.assertHasNode(expected_node, **{
-            FUNCTION: COMPLEX,
-            NAMESPACE: 'SCOMP',
-            NAME: 'AP-1 Complex'
-        })
-
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = statement
-        self.assertEqual(expected_canonical_bel, canonical_bel)
+        expected_node = named_complex_abundance('SCOMP', 'AP-1 Complex')
+        self.assertEqual(statement, expected_node.as_bel())
+        self.assertHasNode(expected_node, **expected_node)
 
     def test_complex_list_short(self):
         statement = 'complex(p(HGNC:FOS), p(HGNC:JUN))'
@@ -1384,34 +1174,17 @@ class TestComplex(TestTokenParserBase):
         }
         self.assertEqual(expected_result, result.asDict())
 
-        expected_node = COMPLEX, (PROTEIN, 'HGNC', 'FOS'), (PROTEIN, 'HGNC', 'JUN')
-        self.assertEqual(expected_node, node_to_tuple(result))
-        self.assertHasNode(expected_node, **{
-            FUNCTION: COMPLEX,
-            MEMBERS: [
-                {
-                    FUNCTION: PROTEIN,
-                    NAMESPACE: 'HGNC',
-                    NAME: 'FOS'
-                },
-                {
-                    FUNCTION: PROTEIN,
-                    NAMESPACE: 'HGNC',
-                    NAME: 'JUN'
-                }
-            ]
-        })
+        fos = protein('HGNC', 'FOS')
+        jun = protein('HGNC', 'JUN')
+        node = complex_abundance([fos, jun])
+        self.assertEqual(statement, node.as_bel())
+        self.assertHasNode(node, **node)
 
-        expected_canonical_bel = statement
-        self.assertEqual(expected_canonical_bel, self.graph.node_to_bel(expected_node))
+        self.assertHasNode(fos, **fos)
+        self.assertHasEdge(node, fos, relation=HAS_COMPONENT)
 
-        child_1 = PROTEIN, 'HGNC', 'FOS'
-        self.assertHasNode(child_1)
-        self.assertHasEdge(expected_node, child_1, relation=HAS_COMPONENT)
-
-        child_2 = PROTEIN, 'HGNC', 'JUN'
-        self.assertHasNode(child_2)
-        self.assertHasEdge(expected_node, child_2, relation=HAS_COMPONENT)
+        self.assertHasNode(jun, **jun)
+        self.assertHasEdge(node, fos, relation=HAS_COMPONENT)
 
     def test_complex_list_long(self):
         statement = 'complexAbundance(proteinAbundance(HGNC:HBP1),geneAbundance(HGNC:NCF1))'
@@ -1454,47 +1227,21 @@ class TestComposite(TestTokenParserBase):
         }
         self.assertEqual(expected_dict, result.asDict())
 
-        expected_node = COMPOSITE, (COMPLEX, 'GOCC', 'interleukin-23 complex'), (PROTEIN, 'HGNC', 'IL6')
-        self.assertEqual(expected_node, node_to_tuple(result))
+        il23 = named_complex_abundance('GOCC', 'interleukin-23 complex')
+        il6 = protein('HGNC', 'IL6')
+        expected_node = composite_abundance([il23, il6])
 
-        self.assertIn(expected_node, self.graph)
-        expected_node_dict = {
-            FUNCTION: COMPOSITE,
-            MEMBERS: [
-                {
-                    FUNCTION: COMPLEX,
-                    NAMESPACE: 'GOCC',
-                    NAME: 'interleukin-23 complex'
-                },
-                {
-                    FUNCTION: PROTEIN,
-                    NAMESPACE: 'HGNC',
-                    NAME: 'IL6'
-                }
-            ]
-        }
-        self.assertIn(FUNCTION, self.graph.node[expected_node])
-        self.assertIn(COMPOSITE, self.graph.node[expected_node][FUNCTION])
-        self.assertIn(MEMBERS, self.graph.node[expected_node])
-        self.assertIsInstance(self.graph.node[expected_node][MEMBERS], (list, tuple))
-        self.assertEqual(2, len(self.graph.node[expected_node][MEMBERS]))
-        self.assertEqual(expected_node_dict[MEMBERS][0], self.graph.node[expected_node][MEMBERS][0])
-        self.assertEqual(expected_node_dict[MEMBERS][1], self.graph.node[expected_node][MEMBERS][1])
-        self.assertEqual(expected_node_dict, self.graph.node[expected_node])
-
-        expected_canonical_bel = 'composite(complex(GOCC:"interleukin-23 complex"), p(HGNC:IL6))'  # sorted
-        self.assertEqual(expected_canonical_bel, self.graph.node_to_bel(expected_node))
+        # needs sorting
+        self.assertEqual('composite(complex(GOCC:"interleukin-23 complex"), p(HGNC:IL6))', expected_node.as_bel())
 
         self.assertEqual(3, self.parser.graph.number_of_nodes())
-        self.assertHasNode(expected_node)
-        self.assertHasNode((PROTEIN, 'HGNC', 'IL6'), **{FUNCTION: PROTEIN, NAMESPACE: 'HGNC', NAME: 'IL6'})
-        self.assertHasNode((COMPLEX, 'GOCC', 'interleukin-23 complex'), **{
-            FUNCTION: COMPLEX,
-            NAMESPACE: 'GOCC',
-            NAME: 'interleukin-23 complex'
-        })
-
         self.assertEqual(2, self.parser.graph.number_of_edges())
+
+        self.assertHasNode(il23, **il23)
+        self.assertHasEdge(expected_node, il23, relation=HAS_COMPONENT)
+
+        self.assertHasNode(il6, **il6)
+        self.assertHasEdge(expected_node, il6, relation=HAS_COMPONENT)
 
 
 class TestBiologicalProcess(TestTokenParserBase):
@@ -1517,17 +1264,9 @@ class TestBiologicalProcess(TestTokenParserBase):
         }
         self.assertEqual(expected_dict, result.asDict())
 
-        expected_node = BIOPROCESS, 'GOBP', 'cell cycle arrest'
-        self.assertEqual(expected_node, node_to_tuple(result))
-        self.assertHasNode(expected_node, **{
-            FUNCTION: BIOPROCESS,
-            NAMESPACE: 'GOBP',
-            NAME: 'cell cycle arrest'
-        })
-
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = statement
-        self.assertEqual(expected_canonical_bel, canonical_bel)
+        expected_node = bioprocess('GOBP', 'cell cycle arrest')
+        self.assertEqual(statement, expected_node.as_bel())
+        self.assertHasNode(expected_node, **expected_node)
 
 
 class TestPathology(TestTokenParserBase):
@@ -1549,17 +1288,9 @@ class TestPathology(TestTokenParserBase):
         }
         self.assertEqual(expected_dict, result.asDict())
 
-        expected_node = PATHOLOGY, 'MESHD', 'adenocarcinoma'
-        self.assertEqual(expected_node, node_to_tuple(result))
-        self.assertHasNode(expected_node, **{
-            FUNCTION: PATHOLOGY,
-            NAMESPACE: 'MESHD',
-            NAME: 'adenocarcinoma'
-        })
-
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = 'path(MESHD:adenocarcinoma)'
-        self.assertEqual(expected_canonical_bel, canonical_bel)
+        expected_node = pathology('MESHD', 'adenocarcinoma')
+        self.assertEqual('path(MESHD:adenocarcinoma)', expected_node.as_bel())
+        self.assertHasNode(expected_node, **expected_node)
 
 
 class TestActivity(TestTokenParserBase):
@@ -1697,8 +1428,7 @@ class TestActivity(TestTokenParserBase):
         }
         self.assertEqual(expected_mod, mod)
 
-        node = PROTEIN, 'HGNC', 'AKT1'
-        self.assertEqual(node, node_to_tuple(result))
+        node = protein('HGNC', 'AKT1')
         self.assertHasNode(node)
 
 
@@ -1740,8 +1470,7 @@ class TestTranslocationPermissive(unittest.TestCase):
         }
         self.assertEqual(expected_mod, mod)
 
-        node = PROTEIN, 'HGNC', 'EGFR'
-        self.assertEqual(node, node_to_tuple(result))
+        node = protein('HGNC', 'EGFR')
         self.assertHasNode(node)
 
     def test_unqualified_translocation_relation(self):
@@ -1772,10 +1501,10 @@ class TestTranslocationPermissive(unittest.TestCase):
         }
         self.assertEqual(expected_dict, result.asDict())
 
-        sub = ABUNDANCE, 'ADO', 'Abeta_42'
+        sub = abundance('ADO', 'Abeta_42')
         self.assertHasNode(sub)
 
-        obj = ABUNDANCE, 'CHEBI', 'calcium(2+)'
+        obj = abundance( 'CHEBI', 'calcium(2+)')
         self.assertHasNode(obj)
 
         expected_annotations = {
@@ -1841,8 +1570,7 @@ class TestTransformation(TestTokenParserBase):
         }
         self.assertEqual(expected_mod, mod)
 
-        node = PROTEIN, 'HGNC', 'EGFR'
-        self.assertEqual(node, node_to_tuple(result))
+        node = protein('HGNC', 'EGFR')
         self.assertHasNode(node)
 
     def test_translocation_standard(self):
@@ -1873,8 +1601,7 @@ class TestTransformation(TestTokenParserBase):
 
         self.assertEqual(expected_mod, mod)
 
-        node = PROTEIN, 'HGNC', 'EGFR'
-        self.assertEqual(node, node_to_tuple(result))
+        node = protein('HGNC', 'EGFR')
         self.assertHasNode(node)
 
     def test_translocation_bare(self):
@@ -1906,8 +1633,7 @@ class TestTransformation(TestTokenParserBase):
         }
         self.assertEqual(expected_mod, mod)
 
-        node = PROTEIN, 'HGNC', 'EGFR'
-        self.assertEqual(node, node_to_tuple(result))
+        node = protein('HGNC', 'EGFR')
         self.assertHasNode(node)
 
     def test_unqualified_translocation_strict(self):
@@ -1928,8 +1654,7 @@ class TestTransformation(TestTokenParserBase):
         expected_mod = secretion()
         self.assertEqual(expected_mod, mod)
 
-        node = PROTEIN, 'HGNC', 'EGFR'
-        self.assertEqual(node, node_to_tuple(result))
+        node = protein('HGNC', 'EGFR')
         self.assertHasNode(node)
 
     def test_translocation_surface(self):
@@ -1943,8 +1668,7 @@ class TestTransformation(TestTokenParserBase):
         expected_mod = cell_surface_expression()
         self.assertEqual(expected_mod, modifier_po_to_dict(result))
 
-        node = PROTEIN, 'HGNC', 'EGFR'
-        self.assertEqual(node, node_to_tuple(result))
+        node = protein('HGNC', 'EGFR')
         self.assertHasNode(node)
 
     def test_reaction_1(self):
@@ -1989,61 +1713,38 @@ class TestTransformation(TestTokenParserBase):
         }
         self.assertEqual(expected_dict, result.asDict())
 
-        superoxide_node = ABUNDANCE, 'CHEBI', 'superoxide'
-        hydrogen_peroxide = ABUNDANCE, 'CHEBI', 'hydrogen peroxide'
-        oxygen_node = ABUNDANCE, 'CHEBI', 'oxygen'
+        superoxide_node = abundance('CHEBI', 'superoxide')
+        hydrogen_peroxide = abundance('CHEBI', 'hydrogen peroxide')
+        oxygen_node = abundance( 'CHEBI', 'oxygen')
 
-        expected_node = REACTION, (superoxide_node,), (hydrogen_peroxide, oxygen_node)
-        self.assertEqual(expected_node, node_to_tuple(result))
-        self.assertHasNode(expected_node, **{
-            FUNCTION: REACTION,
-            REACTANTS: [
-                {
-                    FUNCTION: ABUNDANCE,
-                    NAMESPACE: 'CHEBI',
-                    NAME: 'superoxide'
-                }
-            ],
-            PRODUCTS: [
-                {
-                    FUNCTION: ABUNDANCE,
-                    NAMESPACE: 'CHEBI',
-                    NAME: 'hydrogen peroxide'
-                },
-                {
-
-                    FUNCTION: ABUNDANCE,
-                    NAMESPACE: 'CHEBI',
-                    NAME: 'oxygen'
-                }
-            ]
-        })
-
-        canonical_bel = self.graph.node_to_bel(expected_node)
-        expected_canonical_bel = statement
-        self.assertEqual(expected_canonical_bel, canonical_bel)
+        expected_node = reaction(reactants=superoxide_node, products=[hydrogen_peroxide, oxygen_node])
+        self.assertEqual(statement, expected_node.as_bel())
+        self.assertHasNode(expected_node)
 
         self.assertHasNode(superoxide_node)
-        self.assertHasEdge(expected_node, superoxide_node)
+        self.assertHasEdge(expected_node, superoxide_node, relation=HAS_REACTANT)
 
         self.assertHasNode(hydrogen_peroxide)
-        self.assertHasEdge(expected_node, hydrogen_peroxide)
+        self.assertHasEdge(expected_node, hydrogen_peroxide, relation=HAS_PRODUCT)
 
         self.assertHasNode(oxygen_node)
-        self.assertHasEdge(expected_node, oxygen_node)
+        self.assertHasEdge(expected_node, oxygen_node, relation=HAS_PRODUCT)
 
     def test_reaction_2(self):
         statement = 'rxn(reactants(p(HGNC:APP)), products(p(HGNC:APP, frag(672_713))))'
         result = self.parser.transformation.parseString(statement)
 
-        app_tuple = PROTEIN, 'HGNC', 'APP'
-        self.assertIn(app_tuple, self.graph)
+        app = protein('HGNC', 'APP')
+        self.assertHasNode(app)
 
-        app_frag_tuple = PROTEIN, 'HGNC', 'APP', (FRAGMENT, (672, 713))
-        self.assertIn(app_frag_tuple, self.graph)
+        amyloid_beta = protein('HGNC', 'APP', variants=fragment(672, 713))
+        self.assertHasNode(amyloid_beta)
 
-        expected_node = REACTION, (app_tuple,), (app_frag_tuple,)
-        self.assertIn(expected_node, self.graph)
+        expected_node = reaction(app, amyloid_beta)
+        self.assertHasNode(expected_node)
+
+        self.assertHasEdge(expected_node, app, relation=HAS_REACTANT)
+        self.assertHasEdge(expected_node, amyloid_beta, relation=HAS_PRODUCT)
 
     def test_clearance(self):
         """Tests that after adding things, the graph and parser can be cleared properly"""
@@ -2072,6 +1773,5 @@ class TestSemantics(unittest.TestCase):
         parser.bel_term.addParseAction(parser.handle_term)
         parser.bel_term.parseString('bp(ABASD)')
 
-        node_data = bioprocess(namespace=DIRTY, name='ABASD')
-
-        self.assertTrue(graph.has_node_with_data(node_data))
+        node = bioprocess(namespace=DIRTY, name='ABASD')
+        self.assertIn(node, graph)

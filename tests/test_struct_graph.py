@@ -118,39 +118,17 @@ class TestStruct(unittest.TestCase):
 class TestDSL(unittest.TestCase):
     def test_add_robust_node(self):
         g = BELGraph()
-
         p = protein(name='yfg', namespace='test', identifier='1')
-
-        p_tuple = g.add_node_from_data(p)
-
-        self.assertEqual(
-            {
-                FUNCTION: PROTEIN,
-                NAMESPACE: 'test',
-                NAME: 'yfg',
-                IDENTIFIER: '1'
-            },
-            g.node[p_tuple]
-        )
+        g.add_node_from_data(p)
+        self.assertIn(p, g)
 
     def test_add_identified_node(self):
         """What happens when a node with only an identifier is added to a graph"""
         g = BELGraph()
-
         p = protein(namespace='test', identifier='1')
+        g.add_node_from_data(p)
+        self.assertIn(p, g)
 
-        self.assertNotIn(NAME, p)
-
-        p_tuple = g.add_node_from_data(p)
-
-        self.assertEqual(
-            {
-                FUNCTION: PROTEIN,
-                NAMESPACE: 'test',
-                IDENTIFIER: '1'
-            },
-            g.node[p_tuple]
-        )
 
     def test_missing_information(self):
         """Checks that entity and abundance functions raise on missing name/identifier"""
@@ -231,26 +209,13 @@ class TestGetGraphProperties(unittest.TestCase):
         annotations = self.graph.get_edge_annotations(test_source, test_target, unqualified_edge_code[HAS_VARIANT])
         self.assertIsNone(annotations)
 
-    def test_get_node_name(self):
-        test_identifier = n()
-        node = self.graph.add_node_from_data(protein(namespace='TEST', identifier=test_identifier))
-        self.assertIsNone(self.graph.get_node_name(node))
-        self.assertIsNotNone(self.graph.get_node_identifier(node))
-
-    def test_get_node_identifier(self):
-        test_name = n()
-        node = self.graph.add_node_from_data(protein(namespace='TEST', name=test_name))
-        self.assertIsNotNone(self.graph.get_node_name(node))
-        self.assertIsNone(self.graph.get_node_identifier(node))
 
     def test_get_node_properties(self):
         test_name = n()
         test_identifier = n()
 
-        node = self.graph.add_node_from_data(protein(namespace='TEST', name=test_name, identifier=test_identifier))
-
-        self.assertEqual(test_name, self.graph.get_node_name(node))
-        self.assertEqual(test_identifier, self.graph.get_node_identifier(node))
+        node = protein(namespace='TEST', name=test_name, identifier=test_identifier)
+        self.graph.add_node_from_data(node)
 
         self.assertIsNone(self.graph.get_node_description(node))
 

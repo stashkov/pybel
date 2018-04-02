@@ -14,7 +14,7 @@ def iter_children(graph, node):
     """Iterates over children of the node
 
     :param pybel.BELGraph graph:
-    :param tuple node:
+    :param BaseEntity node:
     :rtype: iter[tuple]
     """
     for u, _, d in graph.in_edges(node, data=True):
@@ -27,8 +27,8 @@ def transfer_causal_edges(graph, source, target):
     """Transfer causal edges that the source has to the target
 
     :param pybel.BELGraph graph:
-    :param tuple source:
-    :param tuple target:
+    :param BaseEntity source:
+    :param BaseEntity target:
     """
     for _, v, k, d in graph.out_edges(source, keys=True, data=True):
         if d[RELATION] not in CAUSAL_RELATIONS:
@@ -65,12 +65,8 @@ def infer_child_relations(graph, node):
     """Propagates causal relations to children
 
     :param pybel.BELGraph graph: A BEL graph
-    :param node: A PyBEL node tuple, on which to propagate the children's relations
-    :type node: tuple or BaseEntity
+    :param BaseEntity node: A PyBEL node, on which to propagate the children's relations
     """
-    if isinstance(node, BaseEntity):
-        node = node.as_tuple()
-
     for child in iter_children(graph, node):
         transfer_causal_edges(graph, node, child)
         infer_child_relations(graph, child)

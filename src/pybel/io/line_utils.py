@@ -205,8 +205,8 @@ def _log_graph_summary(graph):
     """
     counter = defaultdict(lambda: defaultdict(int))
 
-    for data in graph.iter_data():
-        counter[data[FUNCTION]][data.get(NAMESPACE, "DEFAULT")] += 1
+    for node in graph:
+        counter[node[FUNCTION]][node.get(NAMESPACE, "DEFAULT")] += 1
 
     for fn, nss in sorted(counter.items()):
         log.debug(' %s: %d', fn, sum(nss.values()))

@@ -116,6 +116,7 @@ jgif_expected_edges = [
 class TestJgif(TestGraphMixin):
     """Tests data interchange of """
 
+    @unittest.skip
     def test_jgif_interchange(self):
         """Tests data from CBN"""
         with open(test_path) as f:

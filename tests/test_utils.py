@@ -40,19 +40,11 @@ class TestTokenizeVersion(unittest.TestCase):
         self.assertEqual(version_tuple, tokenize_version(version_str))
 
 
-class TestCanonicalizeHelper(unittest.TestCase):
+class TestRandom(unittest.TestCase):
     def test_postpend_location_failure(self):
         with self.assertRaises(ValueError):
             postpend_location('', dict(name='failure'))
 
-    def test_decanonicalize_node_failure(self):
-        test_node = {FUNCTION: 'nope'}
-
-        with self.assertRaises(ValueError):
-            node_to_bel(test_node)
-
-
-class TestRandom(unittest.TestCase):
     def test_nest_failure(self):
         with self.assertRaises(ValueError):
             nest()

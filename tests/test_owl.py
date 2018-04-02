@@ -7,6 +7,7 @@ from pathlib import Path
 
 from pybel import from_path
 from pybel.constants import *
+from pybel.dsl import protein, abundance
 from pybel.manager.utils import parse_owl
 from pybel.parser.exc import RedefinedAnnotationError, RedefinedNamespaceError
 from pybel.parser.parse_metadata import MetadataParser
@@ -390,11 +391,12 @@ class TestExtensionIo(TestGraphMixin, FleetingTemporaryCacheMixin):
         self.assertEqual({'Wine': wine_iri}, graph.annotation_owl)
         self.assertEqual({'HGNC': HGNC_URL}, graph.namespace_url)
 
-        a = PROTEIN, 'HGNC', 'AKT1'
-        b = PROTEIN, 'HGNC', 'EGFR'
-        self.assertHasNode(graph, a)
-        self.assertHasNode(graph, b)
-        self.assertHasEdge(graph, a, b)
+        a = protein(namespace='HGNC', name='AKT1')
+        b = protein(namespace='HGNC', name='EGFR')
+
+        self.assertIn(a, graph)
+        self.assertIn(b, graph)
+        self.assertIn(b, graph[a])
 
         annots = {
             CITATION: {
@@ -407,9 +409,26 @@ class TestExtensionIo(TestGraphMixin, FleetingTemporaryCacheMixin):
                 'Wine': {'Cotturi': True}
             }
         }
-        self.assertHasEdge(graph, (ABUNDANCE, "PIZZA", "MeatTopping"), (ABUNDANCE, 'WINE', 'Wine'), **annots)
-        self.assertHasEdge(graph, (ABUNDANCE, "PIZZA", "TomatoTopping"), (ABUNDANCE, 'WINE', 'Wine'), **annots)
-        self.assertHasEdge(graph, (ABUNDANCE, 'WINE', 'WhiteWine'), (ABUNDANCE, "PIZZA", "FishTopping"), **annots)
+
+        c = abundance(namespace='PIZZA', name='MeatTopping')
+        d = abundance(namespace='WINE', name='Wine')
+        e = abundance(namespace='PIZZA', name='TomatoTopping')
+        f = abundance(namespace='WINE', name='WhiteWine')
+        g = abundance(namespace='PIZZA', name='FishTopping')
+
+        self.assertIn(c, graph)
+        self.assertIn(d, graph)
+        self.assertIn(e, graph)
+        self.assertIn(f, graph)
+        self.assertIn(g, graph)
+
+        self.assertIn(d, graph[c])
+        self.assertIn(d, graph[e])
+        self.assertIn(g, graph[f])
+
+        self.assertHasEdge(graph, c, d, **annots)
+        self.assertHasEdge(graph, e, d, **annots)
+        self.assertHasEdge(graph, f, g, **annots)
 
 
 if __name__ == '__main__':

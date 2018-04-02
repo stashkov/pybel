@@ -40,8 +40,8 @@ class TestLeftFullJoin(unittest.TestCase):
         h.add_node_from_data(p2)
         h.add_node_from_data(p3)
 
-        h.node[p1_tuple]['EXTRANEOUS'] = 'MOST DEFINITELY'
-        h.node[p3_tuple]['EXTRANEOUS'] = 'MOST DEFINITELY'
+        h.node[p1]['EXTRANEOUS'] = 'MOST DEFINITELY'
+        h.node[p2]['EXTRANEOUS'] = 'MOST DEFINITELY'
 
         h.add_qualified_edge(p1, p2, relation=INCREASES, citation='PMID1', evidence='Evidence 1')
         h.add_qualified_edge(p1, p2, relation=INCREASES, citation='PMID2', evidence='Evidence 2')
