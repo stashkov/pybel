@@ -42,19 +42,19 @@ class TestCitations(TemporaryCacheMixin):
 
         self.pmid = "9611787"
 
-        g = BELGraph()
+        graph = BELGraph()
 
-        g.add_node(1)
-        g.add_node(2)
+        graph.add_node(1)
+        graph.add_node(2)
 
-        g.add_edge(1, 2, attr_dict={
+        graph.add_edge(1, 2, attr_dict={
             CITATION: {
                 CITATION_TYPE: CITATION_TYPE_PUBMED,
                 CITATION_REFERENCE: self.pmid
             }
         })
 
-        self.graph = g
+        self.graph = graph
 
     def test_enrich(self):
         pmids = get_pubmed_identifiers(self.graph)

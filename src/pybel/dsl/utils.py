@@ -10,8 +10,8 @@ class entity(dict):
         """Creates a dictionary representing a reference to an entity
 
         :param str namespace: The namespace to which the entity belongs
-        :param str name: The name of the entity
-        :param str identifier: The identifier of the entity in the namespace
+        :param Optional[str] name: The name of the entity
+        :param Optional[str] identifier: The identifier of the entity in the namespace
         :rtype: dict
         """
         if name is None and identifier is None:
