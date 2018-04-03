@@ -326,6 +326,13 @@ class TestInclusionExclusionGraph(TestInclusionExclusion):
         self.assertTrue(f(self.g, self.v))
         self.assertTrue(f(self.g, self.w))
 
+    def test_exclude_u_or_v(self):
+        f = node_exclusion_predicate_builder([self.u, self.v])
+
+        self.assertFalse(f(self.g, self.u))
+        self.assertFalse(f(self.g, self.v))
+        self.assertTrue(f(self.g, self.w))
+
     def test_exclude_none(self):
         f = node_exclusion_predicate_builder([])
 

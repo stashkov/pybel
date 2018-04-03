@@ -6,10 +6,9 @@ import logging
 import warnings
 from copy import deepcopy
 
-import networkx
+import networkx as nx
 from six import string_types
 
-from .operations import left_full_join, left_node_intersection_join, left_outer_join
 from ..canonicalize import edge_to_bel
 from ..constants import *
 from ..dsl import activity
@@ -18,6 +17,11 @@ from ..utils import get_version, hash_edge
 
 __all__ = [
     'BELGraph',
+    'union',
+    'left_node_intersection_join',
+    'left_outer_join',
+    'left_full_join',
+    'node_intersection',
 ]
 
 log = logging.getLogger(__name__)
@@ -49,7 +53,7 @@ def _clean_annotations(annotations_dict):
     }
 
 
-class BELGraph(networkx.MultiDiGraph):
+class BELGraph(nx.MultiDiGraph):
     """This class represents biological knowledge assembled in BEL as a network by extending the
     :class:`networkx.MultiDiGraph`.
     """
@@ -114,6 +118,11 @@ class BELGraph(networkx.MultiDiGraph):
 
         if GRAPH_UNCACHED_NAMESPACES not in self.graph:
             self.graph[GRAPH_UNCACHED_NAMESPACES] = set()
+
+    def fresh_copy(self):
+        """Creates an unfilled :class:`BELGraph` as a hook for other networkx functions. Is necessary for .copy() to
+        work"""
+        return BELGraph()
 
     @property
     def document(self):
@@ -755,7 +764,7 @@ class BELGraph(networkx.MultiDiGraph):
 
         return left_node_intersection_join(self, other)
 
-    def node_to_bel(self, n):
+    def node_to_bel(self, n):  # FIXME delete
         """Serializes a node as BEL
 
         :param tuple n: A PyBEL node tuple
@@ -838,3 +847,235 @@ class BELGraph(networkx.MultiDiGraph):
                 return True
 
         return False
+
+
+def _index_nanopubs(graph):
+    """Builds index from nanopub hash to edge pair
+
+    :param BELGraph graph: A BEL graph
+    :rtype: dict[str, tuple[u,v]]
+    """
+    return {
+        key: (u, v)
+        for u, v, key in graph.edges(keys=True)
+    }
+
+
+def _left_full_node_join(g, h):
+    """Adds all nodes from ``h`` to ``g``, in-place for ``g``
+
+    :param BELGraph g: A BEL graph
+    :param BELGraph h: A BEL graph
+    """
+    for node in h:
+        if node in g:
+            continue
+        g.add_node(node, **h.node[node])
+
+
+def _left_full_metadata_join(g, h):
+    """Adds all metadata from ``h`` to ``g``, in-place for ``g``
+
+    :param pybel.BELGraph g: A BEL graph
+    :param pybel.BELGraph h: A BEL graph
+    """
+    g.namespace_url.update(h.namespace_url)
+    g.namespace_pattern.update(h.namespace_pattern)
+    g.namespace_owl.update(h.namespace_owl)
+
+    g.annotation_url.update(h.annotation_url)
+    g.annotation_pattern.update(h.annotation_pattern)
+    g.annotation_owl.update(h.annotation_owl)
+
+    for keyword, values in h.annotation_list.items():
+        if keyword not in g.annotation_list:
+            g.annotation_list[keyword] = values
+        else:
+            for value in values:
+                g.annotation_list[keyword].add(value)
+
+
+def left_full_join(g, h, node_join=True, metadata_join=True):
+    """Adds all nodes and edges from ``h`` to ``g``, in-place for ``g``
+
+    :param BELGraph g: A BEL graph
+    :param BELGraph h: A BEL graph
+
+    Example usage:
+
+    >>> import pybel
+    >>> g = pybel.from_path('...')
+    >>> h = pybel.from_path('...')
+    >>> merged = left_full_join(g, h)
+    """
+    if node_join:
+        _left_full_node_join(g, h)
+
+    if metadata_join:
+        _left_full_metadata_join(g, h)
+
+    _left_full_edge_join(g, h)
+
+
+def _left_full_edge_join(g, h):
+    """Adds all nodes and edges from ``h`` to ``g``, in-place for ``g`` using a hash-based approach for faster speed.
+    Runs in O(|E(G)| + |E(H)|)
+
+    :param pybel.BELGraph g: A BEL graph
+    :param pybel.BELGraph h: A BEL graph
+    """
+    g_index = _index_nanopubs(g)
+    h_index = _index_nanopubs(h)
+
+    for key, (u, v) in h_index.items():
+        if key in g_index:  # edge already in G
+            continue
+
+        g.add_edge(u, v, key=key, **h[u][v][key])
+
+
+def left_outer_join(g, h):
+    """Only adds weakly connected components from the ``h`` that share at least one node with ``g``.
+
+    Algorithm:
+
+    1. Identify all weakly connected components in ``h``
+    2. Add those that have an intersection with the ``g``
+
+    :param BELGraph g: A BEL graph
+    :param BELGraph h: A BEL graph
+
+    Example usage:
+
+    >>> import pybel
+    >>> g = pybel.from_path('...')
+    >>> h = pybel.from_path('...')
+    >>> merged = left_outer_join(g, h)
+    """
+    g_nodes = set(g)
+    g_index = _index_nanopubs(g)
+
+    for comp in nx.weakly_connected_components(h):
+        if g_nodes.isdisjoint(comp):
+            print('not related component:', comp)
+            continue
+
+        comp_graph = h.subgraph(comp)
+        comp_index = _index_nanopubs(comp_graph)
+
+        for key, (u, v) in comp_index.items():
+            if key in g_index:  # edge already in G
+                continue
+
+            g.add_edge(u, v, key=key, **h[u][v][key])
+
+
+def union(graphs):
+    """Takes the union over a collection of networks into a new network. Assumes iterator is longer than 2, but not
+    infinite. Brings in node data with order precedence from beginning of iterator
+
+    :param iter[BELGraph] graphs: An iterator over BEL networks. Can't be infinite.
+    :return: A merged network
+    :rtype: BELGraph
+
+    Example usage:
+
+    >>> import pybel
+    >>> g = pybel.from_path('...')
+    >>> h = pybel.from_path('...')
+    >>> k = pybel.from_path('...')
+    >>> merged = union([g, h, k])
+    """
+    graphs = tuple(graphs)
+
+    n_networks = len(graphs)
+
+    if n_networks == 0:
+        raise ValueError('no networks given')
+
+    if n_networks == 1:
+        return graphs[0]  # FIXME need to copy
+
+    rv = BELGraph()
+
+    for graph in graphs:
+        _left_full_node_join(rv, graph)
+        _left_full_edge_join(rv, graph)
+
+    return rv
+
+
+def left_node_intersection_join(g, h):
+    """Takes the intersection over two networks. This intersection of two graphs is defined by the
+     union of the subgraphs induced over the intersection of their nodes
+
+    :param BELGraph g: A BEL graph
+    :param BELGraph h: A BEL graph
+    :rtype: BELGraph
+
+    Example usage:
+
+    >>> import pybel
+    >>> g = pybel.from_path('...')
+    >>> h = pybel.from_path('...')
+    >>> merged = left_node_intersection_join(g, h)
+    """
+    intersecting_nodes = set(g).intersection(set(h))
+
+    g_inter = g.subgraph(intersecting_nodes)
+    h_inter = h.subgraph(intersecting_nodes)
+
+    rv = BELGraph()
+
+    g_index = _index_nanopubs(g_inter)
+    h_index = _index_nanopubs(h_inter)
+
+    rv.add_nodes_from(g_inter)
+    rv.add_edges_from(g_inter.edges())
+
+    for key, (u, v) in h_index.items():
+        if key in g_index:  # edge already in G
+            continue
+
+        rv.add_edge(u, v, key=key, **h_inter[u][v][key])
+
+    return rv
+
+
+def node_intersection(networks):
+    """Takes the node intersection over a collection of networks into a new network. This intersection is defined
+    the same way as by :func:`left_node_intersection_join`
+
+    :param iter[BELGraph] networks: An iterable of networks. Since it's iterated over twice, it gets converted to a
+                                    tuple first, so this isn't a safe operation for infinite lists.
+    :rtype: BELGraph
+
+    Example usage:
+
+    >>> import pybel
+    >>> g = pybel.from_path('...')
+    >>> h = pybel.from_path('...')
+    >>> k = pybel.from_path('...')
+    >>> merged = node_intersection([g, h, k])
+    """
+    networks = tuple(networks)
+
+    n_networks = len(networks)
+
+    if n_networks == 0:
+        raise ValueError('no networks given')
+
+    if n_networks == 1:
+        return networks[0]
+
+    nodes = set(networks[0])
+
+    for network in networks[1:]:
+        nodes.intersection_update(network)
+
+    subgraphs = (
+        network.subgraph(nodes)
+        for network in networks
+    )
+
+    return union(subgraphs)
