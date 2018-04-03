@@ -38,7 +38,7 @@ __all__ = [
 ]
 
 
-def _sort_abundances(abundances):
+def _sort_tuplables(abundances):
     return sorted(abundances, key=lambda abundance: abundance.as_tuple())
 
 
@@ -227,7 +227,7 @@ class CentralDogma(BaseAbundance):
         if isinstance(variants, Variant):
             self[VARIANTS] = [variants]
         elif variants:
-            self[VARIANTS] = variants
+            self[VARIANTS] = _sort_tuplables(variants)
 
     @property
     def variants(self):
@@ -702,12 +702,12 @@ class reaction(BaseEntity):
         if isinstance(reactants, BaseAbundance):
             self[REACTANTS] = [reactants]
         else:
-            self[REACTANTS] = _sort_abundances(reactants)
+            self[REACTANTS] = _sort_tuplables(reactants)
 
         if isinstance(products, BaseAbundance):
             self[PRODUCTS] = [products]
         else:
-            self[PRODUCTS] = _sort_abundances(products)
+            self[PRODUCTS] = _sort_tuplables(products)
 
     def as_tuple(self):
         """Returns the reaction as a canonicalized tuple
@@ -736,7 +736,7 @@ class ListAbundance(BaseEntity):
         :param list[BaseAbundance] members: A list of PyBEL node data dictionaries
         """
         super(ListAbundance, self).__init__(func=func)
-        self[MEMBERS] = _sort_abundances(members)
+        self[MEMBERS] = _sort_tuplables(members)
 
     def as_tuple(self):
         """Returns the list abundance as a canonicalized tuple
