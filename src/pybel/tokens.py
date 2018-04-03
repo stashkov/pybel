@@ -118,8 +118,16 @@ def _variant_dict_to_dsl(d):
     raise ValueError
 
 
+def _as_tuple(v):
+    return v.as_tuple()
+
+
 def sort_variants(variants):
-    return sorted([variant for variant in variants if variant], key=Variant.as_tuple)
+    """
+    :param list[Variant] variants: A list of variants
+    :rtype: list[Variant]
+    """
+    return sorted([variant for variant in variants if variant], key=_as_tuple)
 
 
 def variant_po_to_dict_helper(tokens):
@@ -151,9 +159,10 @@ def variant_po_to_dict(tokens):
 def sort_abundances(tokens):
     """Sorts a list of PyBEL data dictionaries to their canonical ordering
 
-    :param list[BaseAbundance] tokens:
+    :param iter[BaseAbundance] tokens:
+    :rtype: list[BaseAbundance]
     """
-    return sorted(tokens, key=BaseAbundance.as_tuple)
+    return sorted(tokens, key=_as_tuple)
 
 
 def reaction_part_po_to_dict(tokens):
@@ -161,10 +170,10 @@ def reaction_part_po_to_dict(tokens):
     :type tokens: ParseResult
     :rtype: list[BaseAbundance]
     """
-    return [
+    return sort_abundances(
         po_to_dict(token)
-        for token in sort_abundances(tokens)
-    ]
+        for token in tokens
+    )
 
 
 def reaction_po_to_dict(tokens):

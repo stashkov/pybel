@@ -1010,8 +1010,11 @@ class Edge(Base):
 
         :param pybel.BELGraph graph: A BEL graph
         """
-        u = graph.add_node_from_data(self.source.to_json())
-        v = graph.add_node_from_data(self.target.to_json())
+        u = self.source.to_json()
+        v = self.target.to_json()
+
+        graph.add_node_from_data(u)
+        graph.add_node_from_data(v)
 
         graph.add_edge(u, v, attr_dict=self.get_data_json())
 

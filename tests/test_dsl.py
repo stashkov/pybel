@@ -257,5 +257,5 @@ class TestCanonicalize(unittest.TestCase):
         )
         t = REACTION, ((ABUNDANCE, 'CHEBI', 'A'), (ABUNDANCE, 'CHEBI', 'C')), (
             (ABUNDANCE, 'CHEBI', 'B'), (ABUNDANCE, 'CHEBI', 'D'))
-        self.assertEqual('rxn(reactants(a(CHEBI:A), a(CHEBI:C), products(a(CHEBI:B), a(CHEBI:D)))', str(node))
+        self.assertEqual('rxn(reactants(a(CHEBI:A), a(CHEBI:C)), products(a(CHEBI:B), a(CHEBI:D)))', str(node))
         self.assertEqual(t, node.as_tuple())

@@ -271,7 +271,7 @@ def node_exclusion_predicate_builder(nodes):
     """Builds a function that returns true
 
     :param list[BaseEntity] nodes: A list of PyBEL node data dictionaries or PyBEL node tuples
-    :rtype: (pybel.BELGraph, BaseEntity) -> bool
+    :rtype: ([pybel.BELGraph, ] BaseEntity) -> bool
     """
     nodes = set(nodes)
 
@@ -291,7 +291,7 @@ def node_inclusion_predicate_builder(nodes):
     """Builds a function that returns true
 
     :param list[tuple or dict] nodes: A list of PyBEL node data dictionaries or PyBEL node tuples
-    :rtype: (pybel.BELGraph, BaseEntity) -> bool
+    :rtype: ([pybel.BELGraph, ] BaseEntity) -> bool
     """
     nodes = set(nodes)
 

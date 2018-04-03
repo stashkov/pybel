@@ -21,6 +21,7 @@ p1_tuple = p1.as_tuple()
 p2_tuple = p2.as_tuple()
 p3_tuple = p3.as_tuple()
 
+p = [protein(namespace='1', name=str(i)) for i in range(10)]
 
 class TestLeftFullJoin(unittest.TestCase):
     """Tests the variants of the left full join, including the exhaustive vs. hash algorithms and calling by function
@@ -127,40 +128,42 @@ class TestLeftFullJoin(unittest.TestCase):
         self.assertEqual(self.g, res)
 
 
+
+
 class TestLeftFullOuterJoin(unittest.TestCase):
     def setUp(self):
         g = BELGraph()
 
-        g.add_edge(1, 2)
+        g.add_edge(p[1], p[2])
 
         h = BELGraph()
-        h.add_edge(1, 3)
-        h.add_edge(1, 4)
+        h.add_edge(p[1], p[3])
+        h.add_edge(1, p[4])
 
-        h.add_edge(5, 6)
-        h.add_node(7)
+        h.add_edge(p[5], p[6])
+        h.add_node(p[7])
 
         self.g = g
         self.h = h
 
     def help_check_initial_g(self, g):
-        self.assertEqual(2, g.number_of_nodes())
-        self.assertEqual({1, 2}, set(g))
-        self.assertEqual(1, g.number_of_edges())
-        self.assertEqual({(1, 2)}, set(g.edges_iter()))
+        self.assertEqual(p[2], g.number_of_nodes())
+        self.assertEqual({p[1], p[2]}, set(g))
+        self.assertEqual(p[1], g.number_of_edges())
+        self.assertEqual({(p[1], p[2])}, set(g.edges_iter()))
 
     def help_check_initial_h(self, h):
-        self.assertEqual(6, h.number_of_nodes())
-        self.assertEqual({1, 3, 4, 5, 6, 7}, set(h))
-        self.assertEqual(3, h.number_of_edges())
-        self.assertEqual({(1, 3), (1, 4), (5, 6)}, set(h.edges_iter()))
+        self.assertEqual(p[6], h.number_of_nodes())
+        self.assertEqual({p[1], p[3], p[4], p[5], p[6], p[7]}, set(h))
+        self.assertEqual(p[3], h.number_of_edges())
+        self.assertEqual({(p[1], p[3]), (p[1], p[4]), (p[5], p[6])}, set(h.edges_iter()))
 
     def help_check_result(self, j):
         """After H has been full outer joined into G, this is what it should be"""
-        self.assertEqual(4, j.number_of_nodes())
-        self.assertEqual({1, 2, 3, 4}, set(j))
-        self.assertEqual(3, j.number_of_edges())
-        self.assertEqual({(1, 2), (1, 3), (1, 4)}, set(j.edges_iter()))
+        self.assertEqual(p[4], j.number_of_nodes())
+        self.assertEqual({p[1], p[2], p[3], p[4]}, set(j))
+        self.assertEqual(p[3], j.number_of_edges())
+        self.assertEqual({(p[1], p[2]), (p[1], p[3]), (p[1], p[4])}, set(j.edges_iter()))
 
     def test_in_place_type_failure(self):
         with self.assertRaises(TypeError):
@@ -201,38 +204,38 @@ class TestInnerJoin(unittest.TestCase):
     def setUp(self):
         g = BELGraph()
 
-        g.add_edge(1, 2)
-        g.add_edge(1, 3)
-        g.add_edge(8, 3)
+        g.add_edge(p[1], p[2])
+        g.add_edge(p[1], p[3])
+        g.add_edge(p[8], p[3])
 
         h = BELGraph()
-        h.add_edge(1, 3)
-        h.add_edge(1, 4)
-        h.add_edge(5, 6)
-        h.add_node(7)
+        h.add_edge(p[1], p[3])
+        h.add_edge(p[1], p[4])
+        h.add_edge(p[5], p[6])
+        h.add_node(p[7])
 
         self.g = g
         self.h = h
 
     def help_check_initialize_g(self, graph):
-        self.assertEqual(4, graph.number_of_nodes())
-        self.assertEqual(3, graph.number_of_edges())
+        self.assertEqual(p[4], graph.number_of_nodes())
+        self.assertEqual(p[3], graph.number_of_edges())
 
     def help_check_initialize_h(self, graph):
-        self.assertEqual(6, graph.number_of_nodes())
-        self.assertEqual({1, 3, 4, 5, 6, 7}, set(graph))
-        self.assertEqual(3, graph.number_of_edges())
-        self.assertEqual({(1, 3), (1, 4), (5, 6)}, set(graph.edges_iter()))
+        self.assertEqual(p[6], graph.number_of_nodes())
+        self.assertEqual({p[1], p[3], p[4], p[5], p[6], p[7]}, set(graph))
+        self.assertEqual(p[3], graph.number_of_edges())
+        self.assertEqual({(p[1], p[3]), (p[1], p[4]), (p[5], p[6])}, set(graph.edges_iter()))
 
     def test_initialize(self):
         self.help_check_initialize_g(self.g)
         self.help_check_initialize_h(self.h)
 
     def help_check_join(self, j):
-        self.assertEqual(2, j.number_of_nodes())
-        self.assertEqual({1, 3}, set(j))
-        self.assertEqual(1, j.number_of_edges())
-        self.assertEqual({(1, 3), }, set(j.edges_iter()))
+        self.assertEqual(p[2], j.number_of_nodes())
+        self.assertEqual({p[1], p[3]}, set(j))
+        self.assertEqual(p[1], j.number_of_edges())
+        self.assertEqual({(p[1], p[3]), }, set(j.edges_iter()))
 
     def test_in_place_type_failure(self):
         with self.assertRaises(TypeError):

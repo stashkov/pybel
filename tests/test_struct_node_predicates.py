@@ -240,120 +240,6 @@ class TestNodePredicate(unittest.TestCase):
         self.assertTrue(has_causal_in_edges(g, v))
         self.assertFalse(has_causal_out_edges(g, v))
 
-    def test_node_exclusion_data(self):
-        g = BELGraph()
-
-        u = protein(name='S100b', namespace='MGI')
-        v = abundance(name='nitric oxide', namespace='CHEBI')
-        w = abundance(name='cortisol', namespace='CHEBI', identifier='17650')
-
-        g.add_node_from_data(u)
-        g.add_node_from_data(v)
-        g.add_node_from_data(w)
-
-        f = node_exclusion_predicate_builder([u])
-
-        self.assertFalse(f(u))
-        self.assertTrue(f(v))
-        self.assertTrue(f(w))
-
-        f = node_exclusion_predicate_builder([u, v])
-
-        self.assertFalse(f(u))
-        self.assertFalse(f(v))
-        self.assertTrue(f(w))
-
-        f = node_exclusion_predicate_builder([])
-
-        self.assertTrue(f(u))
-        self.assertTrue(f(v))
-        self.assertTrue(f(w))
-
-    def test_node_exclusion_tuples(self):
-        g = BELGraph()
-        u = protein(name='S100b', namespace='MGI')
-        v = abundance(name='nitric oxide', namespace='CHEBI')
-        w = abundance(name='cortisol', namespace='CHEBI', identifier='17650')
-
-        g.add_node_from_data(u)
-        g.add_node_from_data(v)
-        g.add_node_from_data(w)
-
-        f = node_exclusion_predicate_builder([u])
-
-        self.assertFalse(f(g, u))
-        self.assertTrue(f(g, v))
-        self.assertTrue(f(g, w))
-
-        f = node_exclusion_predicate_builder([u, v])
-
-        self.assertFalse(f(g, u))
-        self.assertFalse(f(g, v))
-        self.assertTrue(f(g, w))
-
-        f = node_exclusion_predicate_builder([])
-
-        self.assertTrue(f(g, u))
-        self.assertTrue(f(g, v))
-        self.assertTrue(f(g, w))
-
-    def test_node_inclusion_data(self):
-        g = BELGraph()
-
-        u = protein(name='S100b', namespace='MGI')
-        v = abundance(name='nitric oxide', namespace='CHEBI')
-        w = abundance(name='cortisol', namespace='CHEBI', identifier='17650')
-
-        g.add_node_from_data(u)
-        g.add_node_from_data(v)
-        g.add_node_from_data(w)
-
-        f = node_inclusion_predicate_builder([u])
-
-        self.assertTrue(f(u))
-        self.assertFalse(f(v))
-        self.assertFalse(f(w))
-
-        f = node_inclusion_predicate_builder([u, v])
-
-        self.assertTrue(f(u))
-        self.assertTrue(f(v))
-        self.assertFalse(f(w))
-
-        f = node_inclusion_predicate_builder([])
-
-        self.assertFalse(f(u))
-        self.assertFalse(f(v))
-        self.assertFalse(f(w))
-
-    def test_node_inclusion_tuples(self):
-        g = BELGraph()
-        u = protein(name='S100b', namespace='MGI')
-        v = abundance(name='nitric oxide', namespace='CHEBI')
-        w = abundance(name='cortisol', namespace='CHEBI', identifier='17650')
-
-        g.add_node_from_data(u)
-        g.add_node_from_data(v)
-        g.add_node_from_data(w)
-
-        f = node_inclusion_predicate_builder([u])
-
-        self.assertTrue(f(g, u))
-        self.assertFalse(f(g, v))
-        self.assertFalse(f(g, w))
-
-        f = node_inclusion_predicate_builder([u, v])
-
-        self.assertTrue(f(g, u))
-        self.assertTrue(f(g, v))
-        self.assertFalse(f(g, w))
-
-        f = node_inclusion_predicate_builder([])
-
-        self.assertFalse(f(g, u))
-        self.assertFalse(f(g, v))
-        self.assertFalse(f(g, w))
-
     def test_causal_source(self):
         g = BELGraph()
 
@@ -371,6 +257,102 @@ class TestNodePredicate(unittest.TestCase):
         self.assertFalse(is_causal_source(g, 3))
         self.assertFalse(is_causal_central(g, 3))
         self.assertTrue(is_causal_sink(g, 3))
+
+
+class TestInclusionExclusion(unittest.TestCase):
+
+    def setUp(self):
+        self.g = BELGraph()
+
+        self.u = protein(name='S100b', namespace='MGI')
+        self.v = abundance(name='nitric oxide', namespace='CHEBI')
+        self.w = abundance(name='cortisol', namespace='CHEBI', identifier='17650')
+
+    def test_exclude_u(self):
+        f = node_exclusion_predicate_builder([self.u])
+
+        self.assertFalse(f(self.u))
+        self.assertTrue(f(self.v))
+        self.assertTrue(f(self.w))
+
+    def test_exclude_u_and_v(self):
+        f = node_exclusion_predicate_builder([self.u, self.v])
+
+        self.assertFalse(f(self.u))
+        self.assertFalse(f(self.v))
+        self.assertTrue(f(self.w))
+
+    def test_exclude_none(self):
+        f = node_exclusion_predicate_builder([])
+
+        self.assertTrue(f(self.u))
+        self.assertTrue(f(self.v))
+        self.assertTrue(f(self.w))
+
+    def test_include_u(self):
+        node_is_u = node_inclusion_predicate_builder([self.u])
+
+        self.assertTrue(node_is_u(self.u))
+        self.assertFalse(node_is_u(self.v))
+        self.assertFalse(node_is_u(self.w))
+
+    def test_include_u_or_v(self):
+        node_is_u_or_v = node_inclusion_predicate_builder([self.u, self.v])
+
+        self.assertTrue(node_is_u_or_v(self.u))
+        self.assertTrue(node_is_u_or_v(self.v))
+        self.assertFalse(node_is_u_or_v(self.w))
+
+    def test_include_none(self):
+        always_fail = node_inclusion_predicate_builder([])
+
+        self.assertFalse(always_fail(self.u))
+        self.assertFalse(always_fail(self.v))
+        self.assertFalse(always_fail(self.w))
+
+
+class TestInclusionExclusionGraph(TestInclusionExclusion):
+    def setUp(self):
+        super(TestInclusionExclusionGraph, self).setUp()
+
+        self.g.add_node_from_data(self.u)
+        self.g.add_node_from_data(self.v)
+        self.g.add_node_from_data(self.w)
+
+    def test_exclude_u(self):
+        f = node_exclusion_predicate_builder([self.u])
+
+        self.assertFalse(f(self.g, self.u))
+        self.assertTrue(f(self.g, self.v))
+        self.assertTrue(f(self.g, self.w))
+
+    def test_exclude_none(self):
+        f = node_exclusion_predicate_builder([])
+
+        self.assertTrue(f(self.g, self.u))
+        self.assertTrue(f(self.g, self.v))
+        self.assertTrue(f(self.g, self.w))
+
+    def test_include_u(self):
+        f = node_inclusion_predicate_builder([self.u])
+
+        self.assertTrue(f(self.g, self.u))
+        self.assertFalse(f(self.g, self.v))
+        self.assertFalse(f(self.g, self.w))
+
+    def test_include_u_or_v(self):
+        f = node_inclusion_predicate_builder([self.u, self.v])
+
+        self.assertTrue(f(self.g, self.u))
+        self.assertTrue(f(self.g, self.v))
+        self.assertFalse(f(self.g, self.w))
+
+    def test_include_none(self):
+        f = node_inclusion_predicate_builder([])
+
+        self.assertFalse(f(self.g, self.u))
+        self.assertFalse(f(self.g, self.v))
+        self.assertFalse(f(self.g, self.w))
 
 
 class TestEdgePredicate(unittest.TestCase):

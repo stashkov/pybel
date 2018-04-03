@@ -93,7 +93,7 @@ def assertHasNode(self, node, graph, **kwargs):
     :type graph: BELGraph
     :param kwargs:
     """
-    self.assertTrue(graph.has_node(node), msg='{} not found in graph'.format(node))
+    self.assertTrue(graph.has_node(node), msg='{} not found in graph. Actual contents:\n{}'.format(node, '\n'.join(map(str, graph))))
     if kwargs:
         missing = set(kwargs) - set(graph.node[node])
         self.assertFalse(missing, msg="Missing {} in node data".format(', '.join(sorted(missing))))

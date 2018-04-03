@@ -8,7 +8,7 @@ import itertools as itt
 import logging
 
 from .constants import *
-from .dsl.nodes import BaseEntity, Variant
+from .dsl.nodes import BaseEntity, Variant, FusionRangeBase
 from .resources.document import make_knowledge_header
 from .utils import ensure_quotes
 
@@ -78,15 +78,10 @@ def fusion_range_to_bel(tokens):
     :param tokens:
     :rtype: str
     """
-    if isinstance(tokens, Variant):
+    if isinstance(tokens, FusionRangeBase):
         return tokens.as_bel()
 
     raise RuntimeError('should be using DSL')
-
-    if FUSION_REFERENCE in tokens:
-        return '{}.{}_{}'.format(tokens[FUSION_REFERENCE], tokens[FUSION_START], tokens[FUSION_STOP])
-
-    return '?'
 
 
 def node_to_bel(data):

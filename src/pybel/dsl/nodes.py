@@ -38,6 +38,10 @@ __all__ = [
 ]
 
 
+def _sort_abundances(abundances):
+    return sorted(abundances, key=lambda abundance: abundance.as_tuple())
+
+
 @six.add_metaclass(abc.ABCMeta)
 class BaseEntity(dict):
     """This class represents all BEL nodes. It can be converted to a tuple and hashed."""
@@ -306,7 +310,6 @@ class Variant(dict):
 
         :return:
         """
-        raise NotImplementedError
 
     @abc.abstractmethod
     def as_bel(self):
@@ -668,24 +671,18 @@ def _entity_list_as_tuple(entities):
     """A helper function for converting reaction list
 
     :type entities: iter[BaseEntity]
-    :rtype: tuple
+    :rtype: tuple[tuple]
     """
-    return tuple(sorted(
-        e.as_tuple()
-        for e in entities
-    ))
+    return tuple(e.as_tuple() for e in entities)
 
 
-def _entity_list_as_bel(entities):  # TODO sorted?
+def _entity_list_as_bel(entities):
     """A helper function for stringifying a list of BEL entities
 
     :type entities: iter[BaseEntity]
     :rtype: str
     """
-    return ', '.join(
-        str(e)
-        for e in entities
-    )
+    return ', '.join(e.as_bel() for e in entities)
 
 
 class reaction(BaseEntity):
@@ -705,12 +702,12 @@ class reaction(BaseEntity):
         if isinstance(reactants, BaseAbundance):
             self[REACTANTS] = [reactants]
         else:
-            self[REACTANTS] = reactants
+            self[REACTANTS] = _sort_abundances(reactants)
 
         if isinstance(products, BaseAbundance):
             self[PRODUCTS] = [products]
         else:
-            self[PRODUCTS] = products
+            self[PRODUCTS] = _sort_abundances(products)
 
     def as_tuple(self):
         """Returns the reaction as a canonicalized tuple
@@ -739,9 +736,7 @@ class ListAbundance(BaseEntity):
         :param list[BaseAbundance] members: A list of PyBEL node data dictionaries
         """
         super(ListAbundance, self).__init__(func=func)
-        self.update({
-            MEMBERS: members
-        })
+        self[MEMBERS] = _sort_abundances(members)
 
     def as_tuple(self):
         """Returns the list abundance as a canonicalized tuple
@@ -819,6 +814,13 @@ class FusionRangeBase(dict):
         :rtype: tuple
         """
 
+    @abc.abstractmethod
+    def as_bel(self):
+        """Returns this fusion range as BEL
+
+        :rtype: str
+        """
+
 
 class missing_fusion_range(FusionRangeBase):
     """Builds a missing fusion range data dictionary"""
@@ -829,13 +831,16 @@ class missing_fusion_range(FusionRangeBase):
         })
 
     def __str__(self):
-        return '?'
+        return self.as_bel()
 
     def as_tuple(self):
         """
         :rtype: tuple
         """
         return self[FUSION_MISSING],
+
+    def as_bel(self):
+        return '?'
 
 
 class fusion_range(FusionRangeBase):

@@ -249,7 +249,13 @@ class QueryManager(LookupManager):
         :param list[str] pubmed_identifiers: A list of PubMed document identifiers
         :rtype: list[Edge]
         """
-        fi = and_(Citation.type == CITATION_TYPE_PUBMED, Citation.reference.in_(pubmed_identifiers))
+        if isinstance(pubmed_identifiers, str):
+            reference_cond = Citation.reference == pubmed_identifiers
+        else:
+            reference_cond = Citation.reference.in_(pubmed_identifiers)
+
+        fi = and_(Citation.type == CITATION_TYPE_PUBMED, reference_cond)
+
         return self.session.query(Edge).join(Evidence).join(Citation).filter(fi).all()
 
     @staticmethod

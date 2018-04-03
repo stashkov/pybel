@@ -1,16 +1,19 @@
 # -*- coding: utf-8 -*-
 
 from pybel.examples import sialic_acid_graph
+from pybel import BELGraph
 from pybel.examples.sialic_acid_example import cd33, cd33_phosphorylated, shp2, syk, trem2
 from pybel.manager.models import Edge, Namespace, Network
+from pybel.constants import IDENTIFIER
 from pybel.manager.query_manager import graph_from_edges
-from tests.constants import TemporaryCacheClsMixin
+from tests.constants import TemporaryCacheClsMixin, TestGraphMixin
 from tests.mocks import mock_bel_resources
+from copy import deepcopy
 
 chebi_url = 'https://arty.scai.fraunhofer.de/artifactory/bel/namespace/chebi/chebi-20170725.belns'
+hgnc_url = 'https://arty.scai.fraunhofer.de/artifactory/bel/namespace/hgnc-human-genes/hgnc-human-genes-20170725.belns'
 
-
-class TestSeeding(TemporaryCacheClsMixin):
+class TestSeeding(TemporaryCacheClsMixin, TestGraphMixin):
     """This module tests the seeding functions in the query manager"""
 
     @classmethod
@@ -25,25 +28,26 @@ class TestSeeding(TemporaryCacheClsMixin):
 
         insert()
 
-    def test_namespace_existence(self):
-        a = 'https://arty.scai.fraunhofer.de/artifactory/bel/namespace/hgnc-human-genes/hgnc-human-genes-20170725.belns'
-        n = self.manager.session.query(Namespace).filter(Namespace.url == a).one()
-
-    def test_namespace_existence_b(self):
-        ns = self.manager.session.query(Namespace).filter(Namespace.url == chebi_url).one()
+    def test_hgnc_namespace_existence(self):
+        ns = self.manager.session.query(Namespace).filter(Namespace.url == hgnc_url).one_or_none()
         self.assertIsNotNone(ns)
+        self.assertEqual(hgnc_url, ns.url)
 
-    def test_sialic_acid_in_node_store(self):
-        r = 'sialic acid'
-
-        n = self.manager.get_namespace_entry(chebi_url, r)
-        self.assertIsNotNone(n)
-
-        self.assertEqual(r, n.name)
+    def test_chebi_namespace_existence_b(self):
+        ns = self.manager.session.query(Namespace).filter(Namespace.url == chebi_url).one_or_none()
+        self.assertIsNotNone(ns)
+        self.assertEqual(chebi_url, ns.url)
 
     def test_namespace_existence_c(self):
         a = 'https://arty.scai.fraunhofer.de/artifactory/bel/namespace/go-biological-process/go-biological-process-20170725.belns'
         self.manager.session.query(Namespace).filter(Namespace.url == a).one()
+
+    def test_sialic_acid_in_node_store(self):
+        name = 'sialic acid'
+
+        n = self.manager.get_namespace_entry(chebi_url, name)
+        self.assertIsNotNone(n)
+        self.assertEqual(name, n.name)
 
     def test_network_existence(self):
         networks = self.manager.session.query(Network).all()
@@ -51,9 +55,7 @@ class TestSeeding(TemporaryCacheClsMixin):
         self.assertEqual(1, len(networks))
 
     def test_edge_existence(self):
-        edges = self.manager.session.query(Edge).all()
-
-        self.assertEqual(11, len(edges))
+        self.assertEqual(11, self.manager.count_edges())
 
     def test_seed_by_pmid(self):
         pmids = ['26438529']
@@ -63,9 +65,7 @@ class TestSeeding(TemporaryCacheClsMixin):
         self.assertLess(0, len(edges))
 
     def test_seed_by_pmid_no_result(self):
-        missing_pmids = ['11111']
-
-        edges = self.manager.query_edges_by_pubmed_identifiers(missing_pmids)
+        edges = self.manager.query_edges_by_pubmed_identifiers('11111')
 
         self.assertEqual(0, len(edges))
 
@@ -75,21 +75,37 @@ class TestSeeding(TemporaryCacheClsMixin):
 
     def test_seed_by_induction(self):
         shp2_model = self.manager.get_node_by_dict(shp2)
+        self.assertIsNotNone(shp2_model)
+
         syk_model = self.manager.get_node_by_dict(syk)
+        self.assertIsNotNone(syk_model)
+
         trem2_model = self.manager.get_node_by_dict(trem2)
+        self.assertIsNotNone(trem2_model)
 
         edges = self.manager.query_induction([shp2_model, syk_model, trem2_model])
         self.assertEqual(2, len(edges))
+        for edge in edges:
+            self.assertIsInstance(edge, Edge)
 
         graph = graph_from_edges(edges)
-
+        self.assertIsInstance(graph, BELGraph)
+        self.assertEqual(2, graph.number_of_edges())
         self.assertEqual(3, graph.number_of_nodes(), msg='Nodes: {}'.format(graph.nodes()))
 
-        self.assertTrue(graph.has_node_with_data(trem2))
-        self.assertTrue(graph.has_node_with_data(syk))
-        self.assertTrue(graph.has_node_with_data(shp2))
+        trem2_copy = deepcopy(trem2)
+        del trem2_copy[IDENTIFIER]
+        syk_copy = deepcopy(syk)
+        del syk_copy[IDENTIFIER]
+        shp2_copy = deepcopy(shp2)
+        del shp2_copy[IDENTIFIER]
 
-        self.assertEqual(2, graph.number_of_edges())
+        self.assertHasNode(graph, trem2_copy)
+        self.assertHasNode(graph, syk_copy)
+        self.assertHasNode(graph, shp2_copy)
+
+        self.assertIn(trem2_copy, graph[syk_copy])
+        self.assertIn(syk_copy, graph[shp2_copy])
 
     def test_seed_by_neighbors(self):
         node = self.manager.get_node_by_dict(shp2)
@@ -100,9 +116,20 @@ class TestSeeding(TemporaryCacheClsMixin):
 
         self.assertEqual(4, graph.number_of_nodes(), msg='Nodes: {}'.format(graph.nodes()))
 
-        self.assertTrue(graph.has_node_with_data(cd33_phosphorylated))
-        self.assertTrue(graph.has_node_with_data(cd33))
-        self.assertTrue(graph.has_node_with_data(syk))
-        self.assertTrue(graph.has_node_with_data(shp2))
+        trem2_copy = deepcopy(trem2)
+        del trem2_copy[IDENTIFIER]
+        syk_copy = deepcopy(syk)
+        del syk_copy[IDENTIFIER]
+        shp2_copy = deepcopy(shp2)
+        del shp2_copy[IDENTIFIER]
+        cd33_copy = deepcopy(cd33)
+        del cd33_copy[IDENTIFIER]
+        cd33_phosphorylated_copy = deepcopy(cd33_phosphorylated)
+        del cd33_phosphorylated_copy[IDENTIFIER]
+
+        self.assertIn(cd33_phosphorylated_copy, graph)
+        self.assertIn(cd33_copy, graph)
+        self.assertIn(syk_copy, graph)
+        self.assertIn(shp2_copy, graph)
 
         self.assertEqual(3, graph.number_of_edges())
