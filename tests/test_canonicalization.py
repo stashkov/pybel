@@ -16,16 +16,11 @@ class TestCanonicalizeEdge(unittest.TestCase):
 
     def setUp(self):
         """Builds a graph and adds some nodes to it"""
-        self.g = BELGraph()
+        self.graph = BELGraph()
         self.u = protein(name='u', namespace='TEST')
         self.v = protein(name='v', namespace='TEST')
-        self.g.add_node_from_data(self.u)
-        self.g.add_node_from_data(self.v)
-        self.key = 0
-
-    def get_data(self, k):
-        """Gets the data associated with the sample key"""
-        return self.g.edge[self.u][self.v][k]
+        self.graph.add_node_from_data(self.u)
+        self.graph.add_node_from_data(self.v)
 
     def add_edge(self, subject_modifier=None, object_modifier=None, annotations=None):
         """Wraps adding a sample edge
@@ -33,11 +28,9 @@ class TestCanonicalizeEdge(unittest.TestCase):
         :param subject_modifier:
         :param object_modifier:
         :param annotations:
-        :rtype: str
+        :rtype: tuple
         """
-        self.key += 1
-
-        self.g.add_qualified_edge(
+        key = self.graph.add_qualified_edge(
             self.u,
             self.v,
             relation=INCREASES,
@@ -46,10 +39,11 @@ class TestCanonicalizeEdge(unittest.TestCase):
             subject_modifier=subject_modifier,
             object_modifier=object_modifier,
             annotations=annotations,
-            key=self.key
         )
 
-        return canonicalize_edge(self.get_data(self.key))
+        data = self.graph[self.u][self.v][key]
+
+        return canonicalize_edge(data)
 
     def test_failure(self):
         with self.assertRaises(ValueError):

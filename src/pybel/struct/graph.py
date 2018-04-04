@@ -364,91 +364,101 @@ class BELGraph(nx.MultiDiGraph):
         """Adds a warning to the internal warning log in the graph, with optional context information"""
         self.warnings.append((line_number, line, exception, {} if context is None else context))
 
+    def _add_edge_helper(self, u, v, attr):
+        """Wraps the base ``add_edge`` function
+
+        :param BaseEntity u:
+        :param BaseEntity v:
+        :param attr: The data dictionary represting the attrs
+        :return: The key/hash for this edge
+        :rtype: str
+        """
+        self.add_node_from_data(u)
+        self.add_node_from_data(v)
+        key = hash_edge(u, v, attr)
+        self.add_edge(u, v, key=key, **attr)
+        return key
+
     def add_unqualified_edge(self, u, v, relation):
         """Adds unique edge that has no annotations
 
-        :param u: Either a PyBEL node tuple or PyBEL node data dictionary representing the source node
-        :type u: tuple or dict
-        :param v: Either a PyBEL node tuple or PyBEL node data dictionary representing the target node
-        :type v: tuple or dict
+        :param BaseEntity u: A PyBEL entity representing the source node
+        :param BaseEntity v: A PyBEL entity  representing the target node
         :param str relation: A relationship label from :mod:`pybel.constants`
 
-        :return: The hash of this edge
+        :return: The key/hash for this edge
         :rtype: str
         """
-        key = unqualified_edge_code[relation]
+        return self._add_edge_helper(u, v, {RELATION: relation})
 
-        if not isinstance(u, BaseEntity):
-            raise TypeError
+    def _generate_unqualifed_edge_hash(self, u, v, relation):
+        """A helper function for generating the relation"""
+        return hash_edge(u, v, {RELATION: relation})
 
-        if not isinstance(v, BaseEntity):
-            raise TypeError
+    def has_unqualified_edge(self, u, v, relation):
+        """Checks if the graph contains the given unqualified relation between the given nodes
 
-        self.add_node_from_data(u)
-        self.add_node_from_data(v)
-
-        attr = {RELATION: relation}
-        attr[HASH] = hash_edge(u, v, attr)
-
-        if not self.has_edge(u, v, key):
-            self.add_edge(u, v, key=key, **attr)
-
-        return attr[HASH]
+        :param BaseEntity u: Either a PyBEL node tuple or PyBEL node data dictionary representing the source node
+        :param BaseEntity v: Either a PyBEL node tuple or PyBEL node data dictionary representing the target node
+        :param str relation: A relationship label from :mod:`pybel.constants`
+        :rtype: bool
+        """
+        return self._generate_unqualifed_edge_hash(u, v, relation) in self[u][v]
 
     def add_transcription(self, u, v):
         """Adds a transcription relation from a gene to an RNA or miRNA node
 
-        :param u: Either a PyBEL node tuple or PyBEL node data dictionary representing the source node
-        :type u: tuple or dict
-        :param v: Either a PyBEL node tuple or PyBEL node data dictionary representing the target node
-        :type v: tuple or dict
+        :param BaseEntity u: Either a PyBEL node tuple or PyBEL node data dictionary representing the source node
+        :param BaseEntity v: Either a PyBEL node tuple or PyBEL node data dictionary representing the target node
+        :rtype: str
         """
-        self.add_unqualified_edge(u, v, TRANSCRIBED_TO)
+        return self.add_unqualified_edge(u, v, TRANSCRIBED_TO)
 
     def add_translation(self, u, v):
         """Adds a translation relation from a RNA to a protein
 
-        :param u: Either a PyBEL node tuple or PyBEL node data dictionary representing the source node
-        :type u: tuple or dict
-        :param v: Either a PyBEL node tuple or PyBEL node data dictionary representing the target node
-        :type v: tuple or dict
+        :param BaseEntity u: Either a PyBEL node tuple or PyBEL node data dictionary representing the source node
+        :param BaseEntity v: Either a PyBEL node tuple or PyBEL node data dictionary representing the target node
+        :rtype: str
         """
-        self.add_unqualified_edge(u, v, TRANSLATED_TO)
+        return self.add_unqualified_edge(u, v, TRANSLATED_TO)
+
+    def add_is_a(self, u, v):
+        """Adds an isA relationship such that u isA v.
+
+        :param BaseEntity u: Either a PyBEL node tuple or PyBEL node data dictionary representing the source node
+        :param BaseEntity v: Either a PyBEL node tuple or PyBEL node data dictionary representing the target node
+        :rtype: str
+        """
+        return self.add_unqualified_edge(u, v, IS_A)
 
     def _add_two_way_unqualified_edge(self, u, v, relation):
-        """Adds an unqualified edge both ways"""
+        """Adds an unqualified edge both ways
+
+        :param BaseEntity u: Either a PyBEL node tuple or PyBEL node data dictionary representing the source node
+        :param BaseEntity v: Either a PyBEL node tuple or PyBEL node data dictionary representing the target node
+        :param str relation: The relation to add
+        """
+        # TODO how to choose which hash to return? canonicalize order of u and v?
+
         self.add_unqualified_edge(u, v, relation)
         self.add_unqualified_edge(v, u, relation)
 
     def add_equivalence(self, u, v):
         """Adds two equivalence relations for the nodes
 
-        :param u: Either a PyBEL node tuple or PyBEL node data dictionary representing the source node
-        :type u: tuple or dict
-        :param v: Either a PyBEL node tuple or PyBEL node data dictionary representing the target node
-        :type v: tuple or dict
+        :param BaseEntity u: Either a PyBEL node tuple or PyBEL node data dictionary representing the source node
+        :param BaseEntity v: Either a PyBEL node tuple or PyBEL node data dictionary representing the target node
         """
-        self._add_two_way_unqualified_edge(u, v, EQUIVALENT_TO)
+        return self._add_two_way_unqualified_edge(u, v, EQUIVALENT_TO)
 
     def add_orthology(self, u, v):
         """Adds two orthology relations for the nodes
 
-        :param u: Either a PyBEL node tuple or PyBEL node data dictionary representing the source node
-        :type u: tuple or dict
-        :param v: Either a PyBEL node tuple or PyBEL node data dictionary representing the target node
-        :type v: tuple or dict
+        :param BaseEntity u: Either a PyBEL node tuple or PyBEL node data dictionary representing the source node
+        :param BaseEntity v: Either a PyBEL node tuple or PyBEL node data dictionary representing the target node
         """
-        self._add_two_way_unqualified_edge(u, v, ORTHOLOGOUS)
-
-    def add_is_a(self, u, v):
-        """Adds an isA relationship such that u isA v.
-
-        :param u: Either a PyBEL node tuple or PyBEL node data dictionary representing the source node
-        :type u: tuple or dict
-        :param v: Either a PyBEL node tuple or PyBEL node data dictionary representing the target node
-        :type v: tuple or dict
-        """
-        self.add_unqualified_edge(u, v, IS_A)
+        return self._add_two_way_unqualified_edge(u, v, ORTHOLOGOUS)
 
     def iter_node_data_pairs(self):
         """Iterates over pairs of nodes and their data dictionaries
@@ -456,16 +466,6 @@ class BELGraph(nx.MultiDiGraph):
         :rtype: iter[tuple[tuple,dict]]
         """
         return self.nodes_iter(data=True)
-
-    def iter_data(self):
-        """Iterates over the node data dictionaries
-
-        :rtype: iter[dict]
-        """
-        return (
-            data
-            for _, data in self.nodes_iter(data=True)
-        )
 
     def add_node_from_data(self, node):
         """Converts a PyBEL node data dictionary to a canonical PyBEL node tuple and ensures it is in the graph.
@@ -511,7 +511,7 @@ class BELGraph(nx.MultiDiGraph):
         return self.has_node(attr_dict)
 
     def add_qualified_edge(self, u, v, relation, evidence, citation, annotations=None, subject_modifier=None,
-                           object_modifier=None, **attr):
+                           object_modifier=None, line=None):
         """Adds an edge, qualified with a relation, evidence, citation, and optional annotations, subject modifications,
         and object modifications
 
@@ -525,6 +525,7 @@ class BELGraph(nx.MultiDiGraph):
         :type annotations: Optional[dict[str,str] or dict[str,set] or dict[str,dict[str,bool]]]
         :param Optional[dict] subject_modifier: The modifiers (like activity) on the subject node. See data model documentation.
         :param Optional[dict] object_modifier: The modifiers (like activity) on the object node. See data model documentation.
+        :param Optional[int] line: The line from the BEL file where this statement originated
 
         :return: The hash of the edge
         :rtype: str
@@ -532,10 +533,10 @@ class BELGraph(nx.MultiDiGraph):
         if u is None or v is None:
             raise ValueError('arguments cant be none')
 
-        attr.update({
+        attr = {
             RELATION: relation,
             EVIDENCE: evidence,
-        })
+        }
 
         if isinstance(citation, string_types):
             attr[CITATION] = {
@@ -556,24 +557,17 @@ class BELGraph(nx.MultiDiGraph):
         if object_modifier:
             attr[OBJECT] = object_modifier
 
-        self.add_node_from_data(u)
-        self.add_node_from_data(v)
+        if line:
+            attr[LINE] = line
 
-        attr[HASH] = hash_edge(u, v, attr)
-
-        if not isinstance(u, BaseEntity):
-            raise RuntimeError('u is not a bel thing! {} {}'.format(u.__class__.__name__, u))
-
-        self.add_edge(u, v, **attr)
-
-        return attr[HASH]
+        return self._add_edge_helper(u, v, attr)
 
     def add_inhibits(self, u, v, evidence, citation, annotations=None, object_modifier=None):
         """A more specific version of add_qualified edge that automatically populates the relation and object
         modifier
 
         :param BaseEntity u: Either a PyBEL node tuple or PyBEL node data dictionary representing the source node
-        :param BaseEntity or dict v: Either a PyBEL node tuple or PyBEL node data dictionary representing the target node
+        :param BaseEntity v: Either a PyBEL node tuple or PyBEL node data dictionary representing the target node
         :param str evidence: The evidence string from an article
         :param dict[str,str] or str citation: The citation data dictionary for this evidence. If a string is given,
                                                 assumes it's a PubMed identifier and autofills the citation type.
@@ -602,7 +596,7 @@ class BELGraph(nx.MultiDiGraph):
         :param key: The edge key
         :rtype: bool
         """
-        return CITATION in self.edge[u][v][key]
+        return CITATION in self[u][v][key]
 
     def get_edge_citation(self, u, v, key):
         """Gets the citation for a given edge
@@ -612,7 +606,7 @@ class BELGraph(nx.MultiDiGraph):
         :param key: The edge key
         :rtype: Optional[dict]
         """
-        return self.edge[u][v][key].get(CITATION)
+        return self[u][v][key].get(CITATION)
 
     def has_edge_evidence(self, u, v, key):
         """Does the given edge have evidence?
@@ -622,7 +616,7 @@ class BELGraph(nx.MultiDiGraph):
         :param key: The edge key
         :rtype: boolean
         """
-        return EVIDENCE in self.edge[u][v][key]
+        return EVIDENCE in self[u][v][key]
 
     def get_edge_evidence(self, u, v, key):
         """Gets the evidence for a given edge
@@ -632,7 +626,7 @@ class BELGraph(nx.MultiDiGraph):
         :param key: The edge key
         :rtype: Optional[str]
         """
-        return self.edge[u][v][key].get(EVIDENCE)
+        return self[u][v][key].get(EVIDENCE)
 
     def get_edge_annotations(self, u, v, key):
         """Gets the annotations for a given edge
@@ -642,7 +636,7 @@ class BELGraph(nx.MultiDiGraph):
         :param key: The edge key
         :rtype: Optional[dict]
         """
-        return self.edge[u][v][key].get(ANNOTATIONS)
+        return self[u][v][key].get(ANNOTATIONS)
 
     def get_node_description(self, node):
         """Gets the description for a given node
@@ -789,14 +783,15 @@ class BELGraph(nx.MultiDiGraph):
     def _equivalent_node_iterator_helper(self, node, visited):
         """Iterates over nodes and their data that are equal to the given node, starting with the original
 
-        :param tuple node: A PyBEL node tuple
+        :param BaseEntity node: A PyBEL entity
+        :param set[BaseEntit] visited: Already visited entities not to check again while performing pseudo-dfs
         :rtype: iter[tuple]
         """
         for v in self.edge[node]:
             if v in visited:
                 continue
 
-            if unqualified_edge_code[EQUIVALENT_TO] not in self.edge[node][v]:
+            if self.has_unqualified_edge(v, node, EQUIVALENT_TO):
                 continue
 
             yield v
@@ -808,8 +803,8 @@ class BELGraph(nx.MultiDiGraph):
     def iter_equivalent_nodes(self, node):
         """Iterates over node tuples that are equivalent to the given node, including the original
 
-        :param tuple node: A PyBEL node tuple
-        :rtype: iter[tuple]
+        :param BaseEntity node: A PyBEL entity
+        :rtype: iter[BaseEntity]
         """
         yield node
 
@@ -819,15 +814,15 @@ class BELGraph(nx.MultiDiGraph):
     def get_equivalent_nodes(self, node):
         """Gets a set of equivalent nodes to this node. Does not include the given node.
 
-        :param tuple node: A PyBEL node tuple
-        :rtype: set[tuple]
+        :param BaseEntity node: A PyBEL entity
+        :rtype: set[BaseEntity]
         """
         return set(self.iter_equivalent_nodes(node))
 
     def _node_has_namespace_helper(self, node, namespace):
         """Check that the node has namespace information. Might have cross references in future
 
-        :param tuple node: A PyBEL node tuple
+        :param BaseEntity node: A PyBEL node tuple
         :rtype: bool
         """
         if isinstance(node, dict):
@@ -838,7 +833,7 @@ class BELGraph(nx.MultiDiGraph):
     def node_has_namespace(self, node, namespace):
         """Does the node have the given namespace? This also should look in the equivalent nodes.
 
-        :param tuple node: A PyBEL node tuple
+        :param BaseEntity node: A PyBEL entity
         :param str namespace: A namespace
         :rtype: bool
         """
@@ -853,7 +848,7 @@ def _index_nanopubs(graph):
     """Builds index from nanopub hash to edge pair
 
     :param BELGraph graph: A BEL graph
-    :rtype: dict[str, tuple[u,v]]
+    :rtype: dict[str, tuple[BaseEntity,BaseEntity]]
     """
     return {
         key: (u, v)

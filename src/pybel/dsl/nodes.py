@@ -714,7 +714,11 @@ class reaction(BaseEntity):
 
         :rtype: tuple
         """
-        return self[FUNCTION], _entity_list_as_tuple(self[REACTANTS]), _entity_list_as_tuple(self[PRODUCTS])
+        return (
+            self[FUNCTION],
+            _entity_list_as_tuple(self[REACTANTS]),
+            _entity_list_as_tuple(self[PRODUCTS])
+        )
 
     def as_bel(self):
         """Returns the reaction as canonicalized BEL

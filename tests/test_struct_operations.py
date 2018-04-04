@@ -166,10 +166,10 @@ class TestLeftFullOuterJoin(unittest.TestCase):
         self.assertIsInstance(g, BELGraph)
 
         self.assertEqual(2, g.number_of_nodes())
-        self.assertEqual({self.n1.as_tuple(), self.n2.as_tuple()}, set(g))
+        self.assertEqual({self.n1, self.n2}, set(g))
 
         self.assertEqual(1, g.number_of_edges())
-        self.assertEqual({(self.n1.as_tuple(), self.n2.as_tuple())}, set(g.edges()))
+        self.assertEqual({(self.n1, self.n2)}, set(g.edges()))
 
     def help_check_initial_h(self, h):
         self.assertIsNotNone(h)
@@ -177,15 +177,15 @@ class TestLeftFullOuterJoin(unittest.TestCase):
 
         self.assertEqual(6, h.number_of_nodes(), msg='initial h graph has wrong number of nodes')
         self.assertEqual(set(h), {
-            x.as_tuple()
+            x
             for x in (self.n1, self.n3, self.n4, self.n5, self.n6, self.n7)
         }, msg='initial h graph has wrong nodes')
 
         self.assertEqual(3, h.number_of_edges(), msg='initial h graph has wrong number of edges')
         self.assertEqual(set(h.edges()), {
-            (self.n1.as_tuple(), self.n3.as_tuple()),
-            (self.n1.as_tuple(), self.n4.as_tuple()),
-            (self.n5.as_tuple(), self.n6.as_tuple())
+            (self.n1, self.n3),
+            (self.n1, self.n4),
+            (self.n5, self.n6)
         }, msg='initial h graph has wrong edges')
 
     def help_check_result(self, j):
@@ -195,15 +195,15 @@ class TestLeftFullOuterJoin(unittest.TestCase):
 
         self.assertEqual(4, j.number_of_nodes(), msg='result has wrong number of edges')
         self.assertEqual(set(j), {
-            x.as_tuple()
+            x
             for x in (self.n1, self.n2, self.n3, self.n4)
         }, msg='result has wrong nodes')
 
         self.assertEqual(3, j.number_of_edges(), msg='result has wrong number of edges')
         self.assertEqual(set(j.edges()), {
-            (self.n1.as_tuple(), self.n2.as_tuple()),
-            (self.n1.as_tuple(), self.n3.as_tuple()),
-            (self.n1.as_tuple(), self.n4.as_tuple())
+            (self.n1, self.n2),
+            (self.n1, self.n3),
+            (self.n1, self.n4)
         }, msg='result has wrong edges')
 
     def test_in_place_type_failure(self):

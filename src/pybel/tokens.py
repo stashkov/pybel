@@ -165,25 +165,14 @@ def sort_abundances(tokens):
     return sorted(tokens, key=_as_tuple)
 
 
-def reaction_part_po_to_dict(tokens):
-    """
-    :type tokens: ParseResult
-    :rtype: list[BaseAbundance]
-    """
-    return sort_abundances(
-        po_to_dict(token)
-        for token in tokens
-    )
-
-
 def reaction_po_to_dict(tokens):
     """
     :type tokens: ParseResult
     :rtype: pybel.dsl.nodes.reaction
     """
     return reaction(
-        reactants=reaction_part_po_to_dict(tokens[REACTANTS]),
-        products=reaction_part_po_to_dict(tokens[PRODUCTS]),
+        reactants=[po_to_dict(reactant) for reactant in tokens[REACTANTS]],
+        products=[po_to_dict(token) for token in tokens[PRODUCTS]],
     )
 
 

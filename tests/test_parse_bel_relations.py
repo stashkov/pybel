@@ -3,8 +3,9 @@
 import logging
 import unittest
 
+from pyparsing import ParseException
+
 from pybel import BELGraph
-from pybel.canonicalize import edge_to_bel
 from pybel.constants import *
 from pybel.dsl import (
     abundance, activity, bioprocess, complex_abundance, composite_abundance, entity, gene, gene_substitution, gmod,
@@ -15,8 +16,6 @@ from pybel.parser.exc import (
     MissingNamespaceNameWarning, NestedRelationWarning, RelabelWarning, UndefinedNamespaceWarning,
 )
 from pybel.tokens import po_to_dict
-from pyparsing import ParseException
-
 from tests.constants import TestTokenParserBase, test_citation_dict, test_evidence_text
 
 log = logging.getLogger(__name__)
@@ -656,7 +655,6 @@ class TestRelations(TestTokenParserBase):
         calculated_target_data = self.graph.node[target]
         self.assertTrue(calculated_target_data)
 
-
     def test_component_list(self):
         s = 'complex(SCOMP:"C1 Complex") hasComponents list(p(HGNC:C1QB), p(HGNC:C1S))'
         result = self.parser.relation.parseString(s)
@@ -924,8 +922,10 @@ class TestRelations(TestTokenParserBase):
             products=[sub_product_1, sub_product_2, sub_product_3]
         )
 
-        self.assertEqual(7, self.graph.number_of_nodes(), msg='\n'.join(map(str, self.graph)))
-        self.assertEqual(6, self.graph.number_of_edges())
+        self.assertEqual(7, self.graph.number_of_nodes(),
+                         msg='Wrong nodes:\n{}'.format('\n'.join(map(str, self.graph))))
+        self.assertEqual(6, self.graph.number_of_edges(),
+                         msg='Wrong edges:\n{}'.format('\n'.join(str((str(u), str(v), str(key)[:10], str(data))) for u,v,key,data in self.graph.edges(keys=True, data=True))))
         self.assertHasNode(sub)
         self.assertHasNode(sub_reactant_1)
         self.assertHasNode(sub_reactant_2)

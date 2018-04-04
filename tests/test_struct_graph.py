@@ -148,11 +148,10 @@ class TestGetGraphProperties(unittest.TestCase):
     def test_get_qualified_edge(self):
         test_source = protein(namespace='TEST', name='YFG')
         test_target = protein(namespace='TEST', name='YFG2')
-        test_key = n()
         test_evidence = n()
         test_pmid = n()
 
-        self.graph.add_qualified_edge(
+        test_key = self.graph.add_qualified_edge(
             test_source,
             test_target,
             relation=INCREASES,
@@ -162,7 +161,6 @@ class TestGetGraphProperties(unittest.TestCase):
                 'Species': '9606',
                 'Confidence': 'Very High'
             },
-            key=test_key
         )
 
         citation = self.graph.get_edge_citation(test_source, test_target, test_key)
@@ -194,19 +192,19 @@ class TestGetGraphProperties(unittest.TestCase):
         test_source = protein(namespace='TEST', name='YFG')
         test_target = protein(namespace='TEST', name='YFG2')
 
-        self.graph.add_unqualified_edge(
+        key = self.graph.add_unqualified_edge(
             test_source,
             test_target,
             relation=HAS_VARIANT,
         )
 
-        citation = self.graph.get_edge_citation(test_source, test_target, unqualified_edge_code[HAS_VARIANT])
+        citation = self.graph.get_edge_citation(test_source, test_target, key)
         self.assertIsNone(citation)
 
-        evidence = self.graph.get_edge_evidence(test_source, test_target, unqualified_edge_code[HAS_VARIANT])
+        evidence = self.graph.get_edge_evidence(test_source, test_target, key)
         self.assertIsNone(evidence)
 
-        annotations = self.graph.get_edge_annotations(test_source, test_target, unqualified_edge_code[HAS_VARIANT])
+        annotations = self.graph.get_edge_annotations(test_source, test_target, key)
         self.assertIsNone(annotations)
 
 

@@ -1473,6 +1473,8 @@ class TestEquivalentNodes(unittest.TestCase):
 
         graph.add_equivalence(a, b)
 
+        self.assertTrue(graph.has_unqualified_edge(a, b, EQUIVALENT_TO))
+
         self.assertEqual({a, b}, graph.get_equivalent_nodes(a), msg='no identifier found for CD33')
         self.assertEqual({a, b}, graph.get_equivalent_nodes(b), msg='no symbol found for HGNC:1659')
 

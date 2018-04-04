@@ -15,26 +15,28 @@ from pybel.struct.mutation.transfer import iter_children
 
 class TestMutations(unittest.TestCase):
     def test_strip_annotations(self):
-        x = protein(namespace='HGNC', name='X')
-        y = protein(namespace='HGNC', name='X')
+        u = protein(namespace='HGNC', name='U')
+        v = protein(namespace='HGNC', name='V')
+
+        annotations = {
+            'A': {'B': True}
+        }
 
         graph = BELGraph()
-        graph.add_qualified_edge(
-            x,
-            y,
+        key = graph.add_qualified_edge(
+            u,
+            v,
             relation=INCREASES,
             citation='123456',
             evidence='Fake',
-            annotations={
-                'A': {'B': True}
-            },
-            key=1
+            annotations=annotations,
         )
 
-        self.assertIn(ANNOTATIONS, graph.edge[x][y][1])
+        self.assertIn(ANNOTATIONS, graph[u][v][key])
 
+        self.assertEqual(annotations, graph.get_edge_annotations(u, v, key))
         strip_annotations(graph)
-        self.assertNotIn(ANNOTATIONS, graph.edge[x][y][1])
+        self.assertNotIn(ANNOTATIONS, graph[u][v][key])
 
 
 class TestTransfer(unittest.TestCase):

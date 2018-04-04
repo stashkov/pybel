@@ -23,7 +23,7 @@ from .parse_identifier import IdentifierParser
 from .utils import WCW, nest, one_of_tags, quote, triple
 from .. import language
 from ..constants import *
-from ..dsl.nodes import BaseAbundance, BaseEntity
+from ..dsl.nodes import BaseEntity
 from ..tokens import modifier_po_to_dict, po_to_dict
 
 __all__ = ['BelParser']
@@ -605,7 +605,7 @@ class BelParser(BaseParser):
         :param int position: The position in the line being parsed
         :param pyparsing.ParseResult tokens: The tokens from PyParsing
         """
-        self.ensure_node(tokens) # store just for testing
+        self.ensure_node(tokens)
         return tokens
 
     def _handle_list_helper(self, tokens, relation):
@@ -647,7 +647,7 @@ class BelParser(BaseParser):
             annotations=annotations,
             subject_modifier=subject_modifier,
             object_modifier=object_modifier,
-            **{LINE: self.line_number}
+            line=self.line_number
         )
 
     def _add_qualified_edge(self, u, v, relation, annotations, subject_modifier, object_modifier):
@@ -671,6 +671,34 @@ class BelParser(BaseParser):
                 subject_modifier=object_modifier,
             )
 
+    @staticmethod
+    def _handle_annotation_entries(annotation_entries):
+        """Turns boring strings or sets of strings into dictionaries with the value of ``True``
+
+        :param str or set[str] annotation_entries:
+        :rtype: dict[str,bool]
+        """
+        if isinstance(annotation_entries, str):
+            return {
+                annotation_entries: True
+            }
+
+        if isinstance(annotation_entries, set):
+            return {
+                annotation_entry: True
+                for annotation_entry in annotation_entries
+            }
+
+    def _build_annotation_dict(self):
+        """Builds an annotation dictionary using the annotations stored in the internal control_parser
+
+        :rtype: dict[str,dict[str,bool]]
+        """
+        return {
+            annotation_name: self._handle_annotation_entries(annotation_entries)
+            for annotation_name, annotation_entries in self.control_parser.annotations.items()
+        }
+
     def _handle_relation(self, tokens):
         """A policy in which all annotations are stored as sets, including single annotations
 
@@ -682,17 +710,7 @@ class BelParser(BaseParser):
         subject_modifier = modifier_po_to_dict(tokens[SUBJECT])
         object_modifier = modifier_po_to_dict(tokens[OBJECT])
 
-        annotations = {
-            annotation_name: (
-                {
-                    ae: True
-                    for ae in annotation_entry
-                } if isinstance(annotation_entry, set) else {
-                    annotation_entry: True
-                }
-            )
-            for annotation_name, annotation_entry in self.control_parser.annotations.items()
-        }
+        annotations = self._build_annotation_dict()
 
         self._add_qualified_edge(
             subject_node,
