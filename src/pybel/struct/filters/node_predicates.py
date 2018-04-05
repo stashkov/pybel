@@ -46,8 +46,8 @@ def node_predicate(f):
     def wrapped(*args):
         x = args[0]
 
-        if isinstance(x, BELGraph):
-            return f(x.node[args[1]], *args[2:])
+        if isinstance(x, BELGraph):  # just throw away the BELGraph
+            return f(*args[1:])
 
         # Assume:
         # if isinstance(x, dict):
