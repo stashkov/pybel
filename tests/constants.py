@@ -7,6 +7,8 @@ import unittest
 from json import dumps
 from pathlib import Path
 
+from requests.compat import urlparse
+
 from pybel import BELGraph
 from pybel.constants import *
 from pybel.dsl import *
@@ -14,7 +16,6 @@ from pybel.manager import Manager
 from pybel.parser.exc import *
 from pybel.parser.parse_bel import BelParser
 from pybel.utils import subdict_matches
-from requests.compat import urlparse
 
 log = logging.getLogger(__name__)
 
@@ -93,7 +94,8 @@ def assertHasNode(self, node, graph, **kwargs):
     :type graph: BELGraph
     :param kwargs:
     """
-    self.assertTrue(graph.has_node(node), msg='{} not found in graph. Actual contents:\n{}'.format(node, '\n'.join(map(str, graph))))
+    self.assertTrue(graph.has_node(node),
+                    msg='{} not found in graph. Actual contents:\n{}'.format(node, '\n'.join(map(str, graph))))
     if kwargs:
         missing = set(kwargs) - set(graph.node[node])
         self.assertFalse(missing, msg="Missing {} in node data".format(', '.join(sorted(missing))))
@@ -247,6 +249,22 @@ class TestTokenParserBase(unittest.TestCase):
 
     def assertHasEdge(self, u, v, **kwargs):
         assertHasEdge(self, u, v, self.graph, **kwargs)
+
+    def assertNumberNodes(self, n):
+        """
+        :param int n: The number of expected nodes
+        """
+        self.assertEqual(n, self.graph.number_of_nodes(),
+                         msg='Wrong nodes:\n{}'.format('\n'.join(map(str, self.graph))))
+
+    def assertNumberEdges(self, n):
+        """
+        :param int n: The number of expected edges
+        """
+        self.assertEqual(n, self.graph.number_of_edges(),
+                         msg='Wrong edges:\n{}'.format('\n'.join(
+                             str((str(u), str(v), str(key)[:10], str(data))) for u, v, key, data in
+                             self.graph.edges(keys=True, data=True))))
 
     def add_default_provenance(self):
         update_provenance(self.parser.control_parser)

@@ -247,8 +247,11 @@ def modifier_po_to_dict(tokens):
     """Get activity, transformation, or transformation information as a dictionary
 
     :return: a dictionary describing the modifier
-    :rtype: dict
+    :rtype: Optional[dict]
     """
+    if LOCATION not in tokens and MODIFIER not in tokens:
+        return  # rather return None than an empty dict
+
     attrs = {}
 
     if LOCATION in tokens:

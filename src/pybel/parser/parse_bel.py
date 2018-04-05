@@ -47,6 +47,15 @@ degradation_tags = one_of_tags(['deg', 'degradation'], DEGRADATION, MODIFIER)
 reaction_tags = one_of_tags(['reaction', 'rxn'], REACTION, FUNCTION)
 molecular_activity_tags = Suppress(oneOf(['ma', 'molecularActivity']))
 
+rate_limit_tag = oneOf(['rateLimitingStepOf']).setParseAction(replaceWith(RATE_LIMITING_STEP_OF))
+subprocess_of_tag = oneOf(['subProcessOf']).setParseAction(replaceWith(SUBPROCESS_OF))
+transcribed_tag = oneOf([':>', 'transcribedTo']).setParseAction(replaceWith(TRANSCRIBED_TO))
+translated_tag = oneOf(['>>', 'translatedTo']).setParseAction(replaceWith(TRANSLATED_TO))
+has_member_tag = oneOf(['hasMember']).setParseAction(replaceWith(HAS_MEMBER))
+has_members_tag = oneOf(['hasMembers'])
+has_components_tag = oneOf(['hasComponents'])
+has_component_tag = oneOf(['hasComponent']).setParseAction(replaceWith(HAS_COMPONENT))
+
 
 class BelParser(BaseParser):
     """Build a parser backed by a given dictionary of namespaces"""
@@ -300,6 +309,7 @@ class BelParser(BaseParser):
 
         # 3 BEL Relationships
 
+        #: A BEL term is either a transformation, a process, or an abundance
         self.bel_term = MatchFirst([self.transformation, self.process, self.abundance]).streamline()
 
         # BEL Term to BEL Term Relationships
@@ -365,7 +375,6 @@ class BelParser(BaseParser):
         # Mixed Relationships
 
         #: `3.1.5 <http://openbel.org/language/version_2.0/bel_specification_version_2.0.html#_ratelimitingstepof>`_
-        rate_limit_tag = oneOf(['rateLimitingStepOf']).setParseAction(replaceWith(RATE_LIMITING_STEP_OF))
         self.rate_limit = triple(
             MatchFirst([self.biological_process, self.activity, self.transformation]),
             rate_limit_tag,
@@ -373,7 +382,6 @@ class BelParser(BaseParser):
         )
 
         #: `3.4.6 <http://openbel.org/language/version_2.0/bel_specification_version_2.0.html#_subprocessof>`_
-        subprocess_of_tag = oneOf(['subProcessOf']).setParseAction(replaceWith(SUBPROCESS_OF))
         self.subprocess_of = triple(
             MatchFirst([self.process, self.activity, self.transformation]),
             subprocess_of_tag,
@@ -381,32 +389,27 @@ class BelParser(BaseParser):
         )
 
         #: `3.3.2 <http://openbel.org/language/version_2.0/bel_specification_version_2.0.html#_transcribedto>`_
-        transcribed_tag = oneOf([':>', 'transcribedTo']).setParseAction(replaceWith(TRANSCRIBED_TO))
         self.transcribed = triple(self.gene, transcribed_tag, self.rna)
 
         #: `3.3.3 <http://openbel.org/language/version_2.0/bel_specification_version_2.0.html#_translatedto>`_
-        translated_tag = oneOf(['>>', 'translatedTo']).setParseAction(replaceWith(TRANSLATED_TO))
         self.translated = triple(self.rna, translated_tag, self.protein)
 
         #: `3.4.1 <http://openbel.org/language/version_2.0/bel_specification_version_2.0.html#_hasmember>`_
-        has_member_tag = oneOf(['hasMember']).setParseAction(replaceWith(HAS_MEMBER))
         self.has_member = triple(self.abundance, has_member_tag, self.abundance)
 
         #: `3.4.2 <http://openbel.org/language/version_2.0/bel_specification_version_2.0.html#_hasmembers>`_
         self.abundance_list = Suppress('list') + nest(delimitedList(Group(self.abundance)))
 
-        has_members_tag = oneOf(['hasMembers'])
         self.has_members = triple(self.abundance, has_members_tag, self.abundance_list)
         self.has_members.setParseAction(self.handle_has_members)
 
-        has_components_tag = oneOf(['hasComponents'])
         self.has_components = triple(self.abundance, has_components_tag, self.abundance_list)
         self.has_components.setParseAction(self.handle_has_components)
 
         self.has_list = self.has_members | self.has_components
 
         # `3.4.3 <http://openbel.org/language/version_2.0/bel_specification_version_2.0.html#_hascomponent>`_
-        has_component_tag = oneOf(['hasComponent']).setParseAction(replaceWith(HAS_COMPONENT))
+
         self.has_component = triple(
             self.complex_abundances | self.composite_abundance,
             has_component_tag,
@@ -598,7 +601,7 @@ class BelParser(BaseParser):
 
         return tokens
 
-    def handle_term(self, line, position, tokens):
+    def handle_term(self, line, position, tokens):  # TODO try and delete this, and see what happens
         """Handles BEL terms (the subject and object of BEL relations)
 
         :param str line: The line being parsed
@@ -636,9 +639,21 @@ class BelParser(BaseParser):
         """
         return self._handle_list_helper(tokens, HAS_COMPONENT)
 
-    def _add_qualified_edge_helper(self, u, v, relation, annotations, subject_modifier, object_modifier):
-        """Adds a qualified edge from the internal aspects of the parser"""
-        self.graph.add_qualified_edge(
+    def _add_qualified_edge_helper(self, u, v, relation, annotations=None, subject_modifier=None, object_modifier=None):
+        """Adds a qualified edge from the internal aspects of the parser
+
+        :param BaseEntity u: Either a PyBEL node tuple or PyBEL node data dictionary representing the source node
+        :param BaseEntity v: Either a PyBEL node tuple or PyBEL node data dictionary representing the target node
+        :param str relation: The type of relation this edge represents
+        :param annotations: The annotations data dictionary
+        :type annotations: Optional[dict[str,str] or dict[str,set] or dict[str,dict[str,bool]]]
+        :param Optional[dict] subject_modifier: The modifiers (like activity) on the subject node. See data model documentation.
+        :param Optional[dict] object_modifier: The modifiers (like activity) on the object node. See data model documentation.
+
+        :return: The has of the edge that was added
+        :rtype: str
+        """
+        return self.graph.add_qualified_edge(
             u,
             v,
             relation=relation,
@@ -650,17 +665,20 @@ class BelParser(BaseParser):
             line=self.line_number
         )
 
-    def _add_qualified_edge(self, u, v, relation, annotations, subject_modifier, object_modifier):
-        """Adds an edge, then adds the opposite direction edge if it should"""
-        self._add_qualified_edge_helper(
-            u,
-            v,
-            relation=relation,
-            annotations=annotations,
-            subject_modifier=subject_modifier,
-            object_modifier=object_modifier,
-        )
+    def _add_qualified_edge(self, u, v, relation, annotations=None, subject_modifier=None, object_modifier=None):
+        """Adds an edge, then adds the opposite direction edge if it should
 
+        :param BaseEntity u: Either a PyBEL node tuple or PyBEL node data dictionary representing the source node
+        :param BaseEntity v: Either a PyBEL node tuple or PyBEL node data dictionary representing the target node
+        :param str relation: The type of relation this edge represents
+        :param annotations: The annotations data dictionary
+        :type annotations: Optional[dict[str,str] or dict[str,set] or dict[str,dict[str,bool]]]
+        :param Optional[dict] subject_modifier: The modifiers (like activity) on the subject node. See data model documentation.
+        :param Optional[dict] object_modifier: The modifiers (like activity) on the object node. See data model documentation.
+
+        :return: The hash of the edge added
+        :rtype: str
+        """
         if relation in TWO_WAY_RELATIONS:
             self._add_qualified_edge_helper(
                 v,
@@ -670,6 +688,15 @@ class BelParser(BaseParser):
                 object_modifier=subject_modifier,
                 subject_modifier=object_modifier,
             )
+
+        return self._add_qualified_edge_helper(
+            u,
+            v,
+            relation=relation,
+            annotations=annotations,
+            subject_modifier=subject_modifier,
+            object_modifier=object_modifier,
+        )
 
     @staticmethod
     def _handle_annotation_entries(annotation_entries):
@@ -692,16 +719,21 @@ class BelParser(BaseParser):
     def _build_annotation_dict(self):
         """Builds an annotation dictionary using the annotations stored in the internal control_parser
 
-        :rtype: dict[str,dict[str,bool]]
+        :rtype: Optional[dict[str,dict[str,bool]]]
         """
+        if not self.control_parser.annotations:
+            return  # rather return None than an empty dict
+
         return {
             annotation_name: self._handle_annotation_entries(annotation_entries)
             for annotation_name, annotation_entries in self.control_parser.annotations.items()
         }
 
-    def _handle_relation(self, tokens):
+    def _handle_relation(self, line, position, tokens):
         """A policy in which all annotations are stored as sets, including single annotations
 
+        :param str line: The line being parsed
+        :param int position: The position in the line being parsed
         :param pyparsing.ParseResult tokens: The tokens from PyParsing
         """
         subject_node = self.ensure_node(tokens[SUBJECT])
@@ -710,16 +742,20 @@ class BelParser(BaseParser):
         subject_modifier = modifier_po_to_dict(tokens[SUBJECT])
         object_modifier = modifier_po_to_dict(tokens[OBJECT])
 
+        relation = tokens[RELATION]
+
         annotations = self._build_annotation_dict()
 
         self._add_qualified_edge(
             subject_node,
             object_node,
-            relation=tokens[RELATION],
+            relation=relation,
             annotations=annotations,
             subject_modifier=subject_modifier,
             object_modifier=object_modifier,
         )
+
+        return tokens
 
     def _handle_relation_harness(self, line, position, tokens):
         """Handles BEL relations based on the policy specified on instantiation. Note: this can't be changed after
@@ -735,7 +771,12 @@ class BelParser(BaseParser):
         if not self.control_parser.evidence:
             raise MissingSupportWarning(self.line_number, line, position)
 
-        self._handle_relation(tokens)
+        relation = tokens[RELATION]
+
+        if relation in unqualified_edges:
+            self.handle_unqualified_relation(line, position, tokens)
+        else:
+            self._handle_relation(line, position, tokens)
 
         return tokens
 
@@ -746,10 +787,16 @@ class BelParser(BaseParser):
         :param int position: The position in the line being parsed
         :param pyparsing.ParseResult tokens: The tokens from PyParsing
         """
-        subject_node = self.ensure_node(tokens[SUBJECT])
-        object_node = self.ensure_node(tokens[OBJECT])
-        rel = tokens[RELATION]
-        self.graph.add_unqualified_edge(subject_node, object_node, rel)
+        u = self.ensure_node(tokens[SUBJECT])
+        v = self.ensure_node(tokens[OBJECT])
+        relation = tokens[RELATION]
+
+        if relation in TWO_WAY_RELATIONS:
+            self.graph.add_unqualified_edge(u=v, v=u, relation=relation)
+
+        self.graph.add_unqualified_edge(u=u, v=v, relation=relation)
+
+        return tokens
 
     def handle_label_relation(self, line, position, tokens):
         """Handles statements like ``p(X) label "Label for X"``
@@ -773,6 +820,8 @@ class BelParser(BaseParser):
             )
 
         self.graph.set_node_description(subject_node, description)
+
+        return tokens
 
     def ensure_node(self, tokens):
         """Turns parsed tokens into canonical node name and makes sure its in the graph

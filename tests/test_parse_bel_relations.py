@@ -52,7 +52,7 @@ class TestRelations(TestTokenParserBase):
 
         node = gene('HGNC', 'AKT1')
 
-        self.assertEqual(1, self.parser.graph.number_of_nodes())
+        self.assertNumberNodes(1)
         self.assertHasNode(node, **node)
 
     def test_singleton(self):
@@ -106,8 +106,8 @@ class TestRelations(TestTokenParserBase):
         ]
         self.assertEqual(expected, result.asList())
 
-        self.assertEqual(5, self.graph.number_of_nodes())
-        self.assertEqual(4, self.graph.number_of_edges())
+        self.assertNumberNodes(5)
+        self.assertNumberEdges(4)
 
         amyloid_beta = abundance('ADO', 'Abeta_42')
         self.assertHasNode(amyloid_beta)
@@ -629,7 +629,7 @@ class TestRelations(TestTokenParserBase):
         }
         self.assertEqual(expected_result, result.asDict())
 
-        self.assertEqual(2, self.graph.number_of_nodes())
+        self.assertNumberNodes(2)
 
         source = rna('HGNC', 'AKT1')
         self.assertHasNode(source)
@@ -637,7 +637,7 @@ class TestRelations(TestTokenParserBase):
         target = protein('HGNC', 'AKT1')
         self.assertHasNode(target)
 
-        self.assertEqual(1, self.graph.number_of_edges())
+        self.assertNumberEdges(1)
         self.assertTrue(self.graph.has_edge(source, target))
 
         key_data = self.parser.graph.edge[source][target]
@@ -758,8 +758,8 @@ class TestRelations(TestTokenParserBase):
         }
         self.assertEqual(expected_dict, result.asDict())
 
-        self.assertEqual(2, self.graph.number_of_nodes())
-        self.assertEqual(1, self.graph.number_of_edges())
+        self.assertNumberNodes(2)
+        self.assertNumberEdges(1)
 
         node = gene('HGNC', 'APOE', variants=[gene_substitution('C', 526, 'T'), gene_substitution('T', 388, 'C')])
         self.assertEqual('g(HGNC:APOE, var(c.388T>C), var(c.526C>T))', node.as_bel())
@@ -806,6 +806,9 @@ class TestRelations(TestTokenParserBase):
 
         obj = gene('HGNC', 'YFG', variants=hgvs('c.123G>A'))
         self.assertHasNode(obj)
+
+        self.assertTrue(self.graph.has_unqualified_edge(sub, obj, EQUIVALENT_TO))
+        self.assertTrue(self.graph.has_unqualified_edge(obj, sub, EQUIVALENT_TO))
 
         self.assertHasEdge(sub, obj, **{RELATION: EQUIVALENT_TO})
         self.assertHasEdge(obj, sub, **{RELATION: EQUIVALENT_TO})
@@ -856,8 +859,8 @@ class TestRelations(TestTokenParserBase):
             [BIOPROCESS, 'GOBP', 'cholesterol biosynthetic process']]
         self.assertEqual(expected_result, result.asList())
 
-        self.assertEqual(8, self.graph.number_of_nodes())
-        self.assertEqual(7, self.graph.number_of_edges())
+        self.assertNumberNodes(8)
+        self.assertNumberEdges(7)
 
         sub_reactant_1 = abundance('CHEBI', '(S)-3-hydroxy-3-methylglutaryl-CoA')
         sub_reactant_2 = abundance('CHEBI', 'NADPH')
@@ -894,16 +897,41 @@ class TestRelations(TestTokenParserBase):
 
     def test_has_variant(self):
         statement = 'g(HGNC:AKT1) hasVariant g(HGNC:AKT1, gmod(M))'
-        self.parser.relation.parseString(statement)
+        result = self.parser.relation.parseString(statement)
 
-        expected_parent = gene('HGNC', 'AKT1')
-        expected_child = gene('HGNC', 'AKT1', variants=gmod('Me'))
+        expected_result = {
+            SUBJECT: {
+                FUNCTION: GENE,
+                NAMESPACE: 'HGNC',
+                NAME: 'AKT1',
+            },
+            RELATION: HAS_VARIANT,
+            OBJECT: {
+                FUNCTION: GENE,
+                NAMESPACE: 'HGNC',
+                NAME: 'AKT1',
+                VARIANTS: [
+                    {
+                        KIND: GMOD,
+                        IDENTIFIER: {
+                            NAME: 'Me',
+                            NAMESPACE: BEL_DEFAULT_NAMESPACE,
+                        },
+                    }
+                ]
+            }
+        }
+        self.assertEqual(expected_result, result.asDict(), msg='relation parsed wrong')
 
-        self.assertEqual(2, self.graph.number_of_nodes())
-        self.assertEqual(1, self.graph.number_of_edges())
-        self.assertHasNode(expected_parent)
-        self.assertHasNode(expected_child)
-        self.assertHasEdge(expected_parent, expected_child, relation=HAS_VARIANT)
+        sub = gene('HGNC', 'AKT1')
+        obj = gene('HGNC', 'AKT1', variants=gmod('Me'))
+
+        self.assertNumberNodes(2)
+        self.assertNumberEdges(1)
+
+        self.assertHasNode(sub)
+        self.assertHasNode(obj)
+        self.assertHasEdge(sub, obj, relation=HAS_VARIANT)
 
     def test_has_reaction_component(self):
         statement = 'rxn(reactants(a(CHEBI:"(S)-3-hydroxy-3-methylglutaryl-CoA"),a(CHEBI:NADPH), \
@@ -922,10 +950,9 @@ class TestRelations(TestTokenParserBase):
             products=[sub_product_1, sub_product_2, sub_product_3]
         )
 
-        self.assertEqual(7, self.graph.number_of_nodes(),
-                         msg='Wrong nodes:\n{}'.format('\n'.join(map(str, self.graph))))
-        self.assertEqual(6, self.graph.number_of_edges(),
-                         msg='Wrong edges:\n{}'.format('\n'.join(str((str(u), str(v), str(key)[:10], str(data))) for u,v,key,data in self.graph.edges(keys=True, data=True))))
+        self.assertNumberNodes(7)
+        self.assertNumberEdges(6)
+
         self.assertHasNode(sub)
         self.assertHasNode(sub_reactant_1)
         self.assertHasNode(sub_reactant_2)
