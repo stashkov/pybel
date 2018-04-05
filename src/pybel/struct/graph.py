@@ -791,7 +791,7 @@ class BELGraph(nx.MultiDiGraph):
             if v in visited:
                 continue
 
-            if self.has_unqualified_edge(v, node, EQUIVALENT_TO):
+            if not self.has_unqualified_edge(v, node, EQUIVALENT_TO):
                 continue
 
             yield v

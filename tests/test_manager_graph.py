@@ -8,12 +8,14 @@ import unittest
 from collections import defaultdict
 
 import sqlalchemy.exc
+from sqlalchemy import not_
+
 from pybel import BELGraph, from_database, to_database
 from pybel.constants import *
 from pybel.dsl import (
     activity, complex_abundance, composite_abundance, degradation, entity, fragment, fusion_range, gene, gene_fusion,
-    gmod, hgvs, missing_fusion_range, named_complex_abundance, pmod, protein, protein_fusion, reaction, secretion,
-    translocation, protein_deletion
+    gmod, hgvs, missing_fusion_range, named_complex_abundance, pmod, protein, protein_deletion, protein_fusion,
+    reaction, secretion, translocation,
 )
 from pybel.dsl.namespaces import chebi, hgnc
 from pybel.dsl.nodes import BaseEntity
@@ -21,8 +23,6 @@ from pybel.examples import sialic_acid_example, sialic_acid_graph
 from pybel.manager import models
 from pybel.manager.models import Author, Evidence
 from pybel.utils import hash_citation, hash_evidence
-from sqlalchemy import not_
-
 from tests.constants import (
     BelReconstitutionMixin, FleetingTemporaryCacheMixin, TemporaryCacheClsMixin,
     TemporaryCacheMixin, test_citation_dict, test_evidence_text,
@@ -824,7 +824,8 @@ class TestReconstituteNodeTuples(TemporaryCacheMixin):
 
     @mock_bel_resources
     def test_multiple_variants(self, mock):
-        node = gene(namespace='HGNC', name='AKT1', variants=[protein_deletion('Phe', 508), protein_deletion('Phe', 509)])
+        node = gene(namespace='HGNC', name='AKT1',
+                    variants=[protein_deletion('Phe', 508), protein_deletion('Phe', 509)])
         namespaces = {'HGNC': ['AKT1']}
         self.help_reconstitute(node, namespaces, 2, 1)
 
@@ -1463,20 +1464,23 @@ class TestEquivalentNodes(unittest.TestCase):
 
         a = protein(namespace='HGNC', name='CD33')
         graph.add_node_from_data(a)
-        self.assertTrue(graph._node_has_namespace_helper(a, 'HGNC'))
-        self.assertFalse(graph._node_has_namespace_helper(a, 'HGNCID'))
+        self.assertTrue(graph._node_has_namespace_helper(a, 'HGNC'), msg='a should have HGNC namespace')
+        self.assertFalse(graph._node_has_namespace_helper(a, 'HGNCID'), msg='a should not have HGNCID namespace yet')
 
         b = protein(namespace='HGNCID', identifier='1659')
         graph.add_node_from_data(b)
-        self.assertFalse(graph._node_has_namespace_helper(b, 'HGNC'))
-        self.assertTrue(graph._node_has_namespace_helper(b, 'HGNCID'))
+        self.assertFalse(graph._node_has_namespace_helper(b, 'HGNC'), msg='b should not have HGNC namespace yet')
+        self.assertTrue(graph._node_has_namespace_helper(b, 'HGNCID'), msg='b should have HGNCID namespace')
 
         graph.add_equivalence(a, b)
 
-        self.assertTrue(graph.has_unqualified_edge(a, b, EQUIVALENT_TO))
+        self.assertTrue(graph.has_unqualified_edge(a, b, EQUIVALENT_TO), msg='a and b should register as equivalent')
+        self.assertTrue(graph.has_unqualified_edge(b, a, EQUIVALENT_TO), msg='a and b should register as equivalent')
 
-        self.assertEqual({a, b}, graph.get_equivalent_nodes(a), msg='no identifier found for CD33')
-        self.assertEqual({a, b}, graph.get_equivalent_nodes(b), msg='no symbol found for HGNC:1659')
+        equivalent_nodes_to_a = graph.get_equivalent_nodes(a)
+        self.assertIn(a, equivalent_nodes_to_a)
+        self.assertIn(b, equivalent_nodes_to_a)
+        self.assertEqual(2, len(equivalent_nodes_to_a))
 
         self.assertTrue(graph.node_has_namespace(a, 'HGNC'))
         self.assertTrue(graph.node_has_namespace(b, 'HGNC'))
@@ -1498,6 +1502,15 @@ class TestEquivalentNodes(unittest.TestCase):
         graph.add_equivalence(b, c)
         graph.add_equivalence(c, a)
         graph.add_equivalence(c, d)
+
+        self.assertTrue(graph.has_unqualified_edge(a, b, EQUIVALENT_TO))
+        self.assertTrue(graph.has_unqualified_edge(b, a, EQUIVALENT_TO))
+        self.assertTrue(graph.has_unqualified_edge(b, c, EQUIVALENT_TO))
+        self.assertTrue(graph.has_unqualified_edge(c, b, EQUIVALENT_TO))
+        self.assertTrue(graph.has_unqualified_edge(c, a, EQUIVALENT_TO))
+        self.assertTrue(graph.has_unqualified_edge(a, c, EQUIVALENT_TO))
+        self.assertTrue(graph.has_unqualified_edge(c, d, EQUIVALENT_TO))
+        self.assertTrue(graph.has_unqualified_edge(d, c, EQUIVALENT_TO))
 
         self.assertEqual({a, b, c, d}, graph.get_equivalent_nodes(a))
         self.assertEqual({a, b, c, d}, graph.get_equivalent_nodes(b))
