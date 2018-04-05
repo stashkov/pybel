@@ -5,7 +5,7 @@
 JSON Graph Interchange Format
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 The JSON Graph Interchange Format (JGIF) is `specified <http://jsongraphformat.info/>`_ similarly to the Node-Link
-JSON. Interchange with this format provides compatibilty with other software and repositories, such as the 
+JSON. Interchange with this format provides compatibilty with other software and repositories, such as the
 `Causal Biological Network Database <http://causalbionet.com/>`_.
 
 """
@@ -61,9 +61,9 @@ def reformat_citation(citation):
 
 def map_cbn(d):
     """Pre-processes the JSON from the CBN
-    
+
     - removes statements without evidence, or with placeholder evidence
-    
+
     :param dict d: Raw JGIF from the CBN
     :return: Preprocessed JGIF
     :rtype: dict
@@ -152,12 +152,12 @@ def from_cbn_jgif(graph_jgif_dict):
         METADATA_AUTHORS: 'Causal Biological Networks Database',
         METADATA_LICENSES: """
         Please cite:
-        
+
         - www.causalbionet.com
         - https://bionet.sbvimprover.com 
 
         as well as any relevant publications.
-        
+
         The sbv IMPROVER project, the website and the Symposia are part of a collaborative project 
         designed to enable scientists to learn about and contribute to the development of a new crowd 
         sourcing method for verification of scientific data and results. The current challenges, website 
@@ -201,7 +201,7 @@ def from_cbn_jgif(graph_jgif_dict):
 
 def from_jgif(graph_jgif_dict):
     """Builds a BEL graph from a JGIF JSON object.
-    
+
     :param dict graph_jgif_dict: The JSON object representing the graph in JGIF format
     :rtype: BELGraph
     """
@@ -292,11 +292,11 @@ def from_jgif(graph_jgif_dict):
 
 def to_jgif(graph):
     """Builds a JGIF dictionary from a BEL graph.
-    
+
     :param pybel.BELGraph graph: A BEL graph
     :return: A JGIF dictionary
     :rtype: dict
-    
+
     .. warning::
 
         Untested! This format is not general purpose and is therefore time is not heavily invested. If you want to
@@ -329,10 +329,10 @@ def to_jgif(graph):
             'metadata': {}
         })
 
-    for u, v in graph.edges_iter():
+    for u, v in graph.edges():
         relation_evidences = defaultdict(list)
 
-        for data in graph.edge[u][v].values():
+        for data in graph[u][v].values():
 
             if (u, v, data[RELATION]) not in u_v_r_bel:
                 u_v_r_bel[u, v, data[RELATION]] = graph.edge_to_bel(u, v, data=data)
