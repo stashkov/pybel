@@ -10,6 +10,9 @@ from ..constants import *
 from ..utils import ensure_quotes, hash_node
 
 __all__ = [
+    'BaseEntity',
+    'BaseAbundance',
+    'Variant',
     'abundance',
     'gene',
     'rna',

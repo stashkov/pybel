@@ -77,30 +77,23 @@ def calculate_canonical_cx_identifier(graph, node):
     Otherwise, it uses the BEL string.
 
     :param BELGraph graph: A BEL Graph
-    :param tuple node: A node
+    :param BaseEntity node: A node
     :return: Appropriate identifier for the node for CX indexing
     :rtype: str
     """
-    if isinstance(node, BaseEntity):
-        data = node
-    else:
-        raise RuntimeError('stop using tuples!')
-        data = graph.node[node]
+    if not isinstance(node, BaseEntity):
+        raise RuntimeError('stop using tuples! Got class {}: {}'.format(node.__class__.__name__, node))
 
-    return _help_calculate_canonical_cx_identifier(data)
+    if node[FUNCTION] == COMPLEX and NAMESPACE in node:
+        return '{}:{}'.format(node[NAMESPACE], node[NAME])
 
+    if VARIANTS in node or FUSION in node or node[FUNCTION] in {REACTION, COMPOSITE, COMPLEX}:
+        return node.as_bel()
 
-def _help_calculate_canonical_cx_identifier(data):
-    if data[FUNCTION] == COMPLEX and NAMESPACE in data:
-        return '{}:{}'.format(data[NAMESPACE], data[NAME])
+    if VARIANTS not in node and FUSION not in node:  # this is should be a simple node
+        return '{}:{}'.format(node[NAMESPACE], node[NAME])
 
-    if VARIANTS in data or FUSION in data or data[FUNCTION] in {REACTION, COMPOSITE, COMPLEX}:
-        return node_to_bel(data)
-
-    if VARIANTS not in data and FUSION not in data:  # this is should be a simple node
-        return '{}:{}'.format(data[NAMESPACE], data[NAME])
-
-    raise ValueError('Unexpected node data: {}'.format(data))
+    raise ValueError('Unexpected node data: {}'.format(node))
 
 
 def build_node_mapping(graph):

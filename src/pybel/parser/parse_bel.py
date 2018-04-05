@@ -24,7 +24,7 @@ from .utils import WCW, nest, one_of_tags, quote, triple
 from .. import language
 from ..constants import *
 from ..dsl.nodes import BaseEntity
-from ..tokens import modifier_po_to_dict, po_to_dict
+from ..tokens import modifier_po_to_dict, dict_to_entity
 
 __all__ = ['BelParser']
 
@@ -833,7 +833,7 @@ class BelParser(BaseParser):
         if MODIFIER in tokens:
             return self.ensure_node(tokens[TARGET])
 
-        node = po_to_dict(tokens)
+        node = dict_to_entity(tokens)
 
         if not isinstance(node, BaseEntity):
             raise TypeError('po_to_dict did not return BaseEntity: {} {}'.format(node.__class__.__name__, node))

@@ -89,6 +89,9 @@ def from_json(graph_json_dict, check_version=True):
         graph_json_dict['nodes'][i]['id'] = list2tuple(graph_json_dict['nodes'][i]['id'])
 
     graph = node_link_graph(graph_json_dict, directed=True, multigraph=True)
+
+    # FIXME need to convert all nodes into BaseEntities
+
     graph = BELGraph(data=graph)
     return ensure_version(graph, check_version=check_version)
 

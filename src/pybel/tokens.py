@@ -11,11 +11,12 @@ from .dsl.nodes import (
 )
 
 __all__ = [
+    'dict_to_entity',
     'sort_abundances',
 ]
 
 
-def safe_get_dict(tokens):
+def safe_get_dict(tokens):  # FIXME get rid of this
     if hasattr(tokens, 'asDict'):
         return tokens.asDict()
     return dict(tokens)
@@ -151,7 +152,7 @@ def variant_po_to_dict(tokens):
     :type tokens: ParseResult
     :rtype: pybel.dsl.nodes.BaseAbundance
     """
-    attr_data = simple_po_to_dict(tokens)
+    attr_data = simple_dict_to_entity(tokens)
     attr_data[VARIANTS] = variant_po_to_dict_helper(tokens)
     return attr_data
 
@@ -165,18 +166,18 @@ def sort_abundances(tokens):
     return sorted(tokens, key=_as_tuple)
 
 
-def reaction_po_to_dict(tokens):
+def reaction_dict_to_entity(tokens):
     """
     :type tokens: ParseResult
     :rtype: pybel.dsl.nodes.reaction
     """
     return reaction(
-        reactants=[po_to_dict(reactant) for reactant in tokens[REACTANTS]],
-        products=[po_to_dict(token) for token in tokens[PRODUCTS]],
+        reactants=[dict_to_entity(reactant) for reactant in tokens[REACTANTS]],
+        products=[dict_to_entity(token) for token in tokens[PRODUCTS]],
     )
 
 
-def simple_po_to_dict(tokens):
+def simple_dict_to_entity(tokens):
     """
     :type tokens: ParseResult
     :rtype: BaseAbundance
@@ -188,6 +189,11 @@ def simple_po_to_dict(tokens):
 
 
 def fragment_po_to_dsl(tokens):
+    """Converts the tokens for a fragment into the DSL object
+
+    :param dict tokens:
+    :rtype: fragment
+    """
     if FRAGMENT_MISSING in tokens:
         return fragment()
 
@@ -210,7 +216,7 @@ def list_po_to_dict(tokens):
     :rtype: pybel.dsl.nodes.ListAbundance
     """
     list_entries = [
-        po_to_dict(token)
+        dict_to_entity(token)
         for token in tokens[MEMBERS]
     ]
 
@@ -219,17 +225,17 @@ def list_po_to_dict(tokens):
     )
 
 
-def po_to_dict(tokens):
+def dict_to_entity(tokens):
     """Converts a dictionary to a BaseEntity
 
     :type tokens: ParseResult or dict
     :rtype: pybel.dsl.nodes.BaseEntity
     """
     if MODIFIER in tokens:
-        return po_to_dict(tokens[TARGET])
+        return dict_to_entity(tokens[TARGET])
 
     elif REACTION == tokens[FUNCTION]:
-        return reaction_po_to_dict(tokens)
+        return reaction_dict_to_entity(tokens)
 
     elif VARIANTS in tokens:
         return variant_po_to_dict(tokens)
@@ -240,7 +246,7 @@ def po_to_dict(tokens):
     elif FUSION in tokens:
         return fusion_po_to_dict(tokens)
 
-    return simple_po_to_dict(tokens)
+    return simple_dict_to_entity(tokens)
 
 
 def modifier_po_to_dict(tokens):

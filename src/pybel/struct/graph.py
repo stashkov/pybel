@@ -133,6 +133,7 @@ class BELGraph(nx.MultiDiGraph):
         """
         return self.graph[GRAPH_METADATA]
 
+
     @property
     def name(self, *attrs):  # Needs *attrs since it's an override
         """The graph's name, from the ``SET DOCUMENT Name = "..."`` entry in the source BEL script
@@ -391,7 +392,8 @@ class BELGraph(nx.MultiDiGraph):
         """
         return self._add_edge_helper(u, v, {RELATION: relation})
 
-    def _generate_unqualifed_edge_hash(self, u, v, relation):
+    @staticmethod
+    def _generate_unqualifed_edge_hash(u, v, relation):
         """A helper function for generating the relation"""
         return hash_edge(u, v, {RELATION: relation})
 
@@ -477,7 +479,7 @@ class BELGraph(nx.MultiDiGraph):
             raise ValueError('can not add None')
 
         if not isinstance(node, BaseEntity):
-            raise TypeError('should be using base entity {} {}'.format(node.__class__.__name__, node))
+            raise TypeError('should be using BaseEntity. Got class {}: {}'.format(node.__class__.__name__, node))
 
         if node in self:
             return
@@ -757,17 +759,6 @@ class BELGraph(nx.MultiDiGraph):
             raise TypeError('{} is not a {}'.format(other, self.__class__.__name__))
 
         return left_node_intersection_join(self, other)
-
-    def node_to_bel(self, n):  # FIXME delete
-        """Serializes a node as BEL
-
-        :param tuple n: A PyBEL node tuple
-        :rtype: str
-        """
-        if isinstance(n, BaseAbundance):
-            return n.as_bel()
-
-        raise RuntimeError('stop using tuples!')
 
     def edge_to_bel(self, u, v, data, sep=None):
         """Serializes a pair of nodes and related edge data as a BEL relation

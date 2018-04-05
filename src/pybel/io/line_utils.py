@@ -12,7 +12,7 @@ from pyparsing import ParseException
 from sqlalchemy.exc import OperationalError
 from tqdm import tqdm
 
-from ..constants import FUNCTION, GRAPH_METADATA, INVERSE_DOCUMENT_KEYS, NAMESPACE, REQUIRED_METADATA
+from ..constants import FUNCTION, INVERSE_DOCUMENT_KEYS, NAMESPACE, REQUIRED_METADATA
 from ..exceptions import PyBelWarning
 from ..manager import Manager
 from ..parser import BelParser, MetadataParser
@@ -117,7 +117,7 @@ def parse_document(graph, document_metadata, metadata_parser):
         graph.warnings.insert(0, (0, '', MissingMetadataException(required_metadatum_key), {}))
         log.error('Missing required document metadata: %s', required_metadatum_key)
 
-    graph.graph[GRAPH_METADATA] = metadata_parser.document_metadata
+    graph.document.update(metadata_parser.document_metadata)
 
     log.info('Finished parsing document section in %.02f seconds', time.time() - t)
 

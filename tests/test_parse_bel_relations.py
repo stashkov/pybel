@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+"""Tests parsing of BEL relations"""
+
 import logging
 import unittest
 
@@ -15,7 +17,7 @@ from pybel.parser import BelParser
 from pybel.parser.exc import (
     MissingNamespaceNameWarning, NestedRelationWarning, RelabelWarning, UndefinedNamespaceWarning,
 )
-from pybel.tokens import po_to_dict
+from pybel.tokens import dict_to_entity
 from tests.constants import TestTokenParserBase, test_citation_dict, test_evidence_text
 
 log = logging.getLogger(__name__)
@@ -27,10 +29,12 @@ skin_diseases = pathology(namespace='MESH', name='Skin Diseases')
 class TestRelations(TestTokenParserBase):
     @classmethod
     def setUpClass(cls):
+        """Sets up the token parser and streamlines it"""
         super(TestRelations, cls).setUpClass()
         cls.parser.relation.streamline()
 
     def setUp(self):
+        """Adds the default provenance at the beginning of each test"""
         super(TestRelations, self).setUp()
         self.add_default_provenance()
 
@@ -182,7 +186,8 @@ class TestRelations(TestTokenParserBase):
         """
         3.1.3 http://openbel.org/language/web/version_2.0/bel_specification_version_2.0.html#Xdecreases
         Test decreases with reaction"""
-        statement = 'pep(p(SFAM:"CAPN Family", location(GOCC:intracellular))) -| reaction(reactants(p(HGNC:CDK5R1)),products(p(HGNC:CDK5)))'
+        statement = ('pep(p(SFAM:"CAPN Family", location(GOCC:intracellular))) -| '
+                     'reaction(reactants(p(HGNC:CDK5R1)),products(p(HGNC:CDK5)))')
         result = self.parser.relation.parseString(statement)
 
         expected_dict = {
@@ -247,7 +252,8 @@ class TestRelations(TestTokenParserBase):
     def test_directlyDecreases(self):
         """3.1.4 http://openbel.org/language/web/version_2.0/bel_specification_version_2.0.html#XdDecreases
         Tests simple triple"""
-        statement = 'proteinAbundance(HGNC:CAT, location(GOCC:intracellular)) directlyDecreases abundance(CHEBI:"hydrogen peroxide")'
+        statement = ('proteinAbundance(HGNC:CAT, location(GOCC:intracellular)) directlyDecreases '
+                     'abundance(CHEBI:"hydrogen peroxide")')
         result = self.parser.relation.parseString(statement)
 
         expected_dict = {
@@ -820,8 +826,8 @@ class TestRelations(TestTokenParserBase):
         corpus_striatum = abundance(namespace='UBERON', name='corpus striatum')
         basal_ganglion = abundance(namespace='UBERON', name='basal ganglion')
 
-        self.assertTrue(self.parser.graph.has_node_with_data(corpus_striatum))
-        self.assertTrue(self.parser.graph.has_node_with_data(basal_ganglion))
+        self.assertTrue(self.parser.graph.has_node(corpus_striatum))
+        self.assertTrue(self.parser.graph.has_node(basal_ganglion))
 
         self.assertHasNode(corpus_striatum)
         self.assertHasNode(basal_ganglion)
@@ -1041,6 +1047,6 @@ class TestWrite(TestTokenParserBase):
 
             result = self.parser.bel_term.parseString(source_bel)
             tokens = result.asDict()
-            entity = po_to_dict(tokens)
+            entity = dict_to_entity(tokens)
             bel = entity.as_bel()
             self.assertEqual(expected_bel, bel)

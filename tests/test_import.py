@@ -8,6 +8,8 @@ import unittest
 from pathlib import Path
 
 import networkx as nx
+from six import BytesIO, StringIO
+
 from pybel import (
     BELGraph, from_bytes, from_cx, from_cx_jsons, from_json, from_json_file, from_jsons, from_lines, from_ndex,
     from_path, from_pickle, from_url, to_bel_lines, to_bytes, to_csv, to_cx, to_cx_jsons, to_graphml, to_gsea, to_json,
@@ -22,8 +24,6 @@ from pybel.parser import BelParser
 from pybel.parser.exc import *
 from pybel.struct.summary import get_syntax_errors
 from pybel.utils import hash_node
-from six import BytesIO, StringIO
-
 from tests.constants import (
     AKT1, BelReconstitutionMixin, CASP8, EGFR, FADD, TemporaryCacheClsMixin, TestTokenParserBase, citation_1,
     evidence_1, test_bel_isolated, test_bel_misordered, test_bel_simple, test_bel_slushy, test_bel_thorough,
@@ -52,7 +52,6 @@ def do_remapping(original, reconstituted):
         raise e
 
 
-@unittest.skip
 class TestExampleInterchange(unittest.TestCase):
     def help_test_equal(self, graph):
         """Checks that a graph is equal to the sialic acid graph example
@@ -61,7 +60,7 @@ class TestExampleInterchange(unittest.TestCase):
         """
         self.assertEqual(set(sialic_acid_graph), set(graph))
 
-        self.assertEqual(set(sialic_acid_graph.edges_iter()), set(graph.edges_iter()))
+        self.assertEqual(set(sialic_acid_graph.edges()), set(graph.edges()))
 
     def test_example_bytes(self):
         graph_bytes = to_bytes(sialic_acid_graph)
@@ -93,7 +92,6 @@ class TestExampleInterchange(unittest.TestCase):
         self.help_test_equal(graph)
 
 
-@unittest.skip
 class TestInterchange(TemporaryCacheClsMixin, BelReconstitutionMixin):
     @classmethod
     def setUpClass(cls):
@@ -162,40 +160,40 @@ class TestInterchange(TemporaryCacheClsMixin, BelReconstitutionMixin):
         self.bel_thorough_reconstituted(graph)
 
     def test_thorough_graphml(self):
-        handle, path = tempfile.mkstemp()
+        handle, graphml_path = tempfile.mkstemp()
 
-        with open(path, 'wb') as f:
+        with open(graphml_path, 'wb') as f:
             to_graphml(self.thorough_graph, f)
 
         os.close(handle)
-        os.remove(path)
+        os.remove(graphml_path)
 
     def test_thorough_csv(self):
-        handle, path = tempfile.mkstemp()
+        handle, csv_path = tempfile.mkstemp()
 
-        with open(path, 'w') as f:
+        with open(csv_path, 'w') as f:
             to_csv(self.thorough_graph, f)
 
         os.close(handle)
-        os.remove(path)
+        os.remove(csv_path)
 
     def test_thorough_sif(self):
-        handle, path = tempfile.mkstemp()
+        handle, sif_path = tempfile.mkstemp()
 
-        with open(path, 'w') as f:
+        with open(sif_path, 'w') as f:
             to_sif(self.thorough_graph, f)
 
         os.close(handle)
-        os.remove(path)
+        os.remove(sif_path)
 
     def test_thorough_gsea(self):
-        handle, path = tempfile.mkstemp()
+        handle, gsea_path = tempfile.mkstemp()
 
-        with open(path, 'w') as f:
+        with open(gsea_path, 'w') as f:
             to_gsea(self.thorough_graph, f)
 
         os.close(handle)
-        os.remove(path)
+        os.remove(gsea_path)
 
     def test_thorough_cx(self):
         graph_cx_json_dict = to_cx(self.thorough_graph)
@@ -248,13 +246,13 @@ class TestInterchange(TemporaryCacheClsMixin, BelReconstitutionMixin):
         self.bel_slushy_reconstituted(graph)
 
     def test_slushy_graphml(self):
-        handle, path = tempfile.mkstemp()
+        handle, graphml_path = tempfile.mkstemp()
 
-        with open(path, 'wb') as f:
+        with open(graphml_path, 'wb') as f:
             to_graphml(self.slushy_graph, f)
 
         os.close(handle)
-        os.remove(path)
+        os.remove(graphml_path)
 
     def test_slushy_cx(self):
         reconstituted = from_cx(to_cx(self.slushy_graph))
@@ -342,7 +340,6 @@ annotations = {
 }
 
 
-@unittest.skip
 class TestFull(TestTokenParserBase):
     @classmethod
     def setUpClass(cls):
@@ -358,8 +355,8 @@ class TestFull(TestTokenParserBase):
         line = 'g(dbSNP:rs10234) -- g(dbSNP:rs10235)'
         self.add_default_provenance()
         self.parser.parseString(line)
-        self.assertIn((GENE, 'dbSNP', 'rs10234'), self.parser.graph)
-        self.assertIn((GENE, 'dbSNP', 'rs10235'), self.parser.graph)
+        self.assertIn(gene('dbSNP', 'rs10234'), self.parser.graph)
+        self.assertIn(gene('dbSNP', 'rs10235'), self.parser.graph)
 
     def test_regex_mismatch(self):
         line = 'g(dbSNP:10234) -- g(dbSNP:rr10235)'
@@ -394,15 +391,12 @@ class TestFull(TestTokenParserBase):
 
         self.parser.parse_lines(statements)
 
-        test_node_1_dict = gene(namespace='TESTNS', name='1')
-        test_node_2_dict = gene(namespace='TESTNS', name='2')
+        test_node_1 = gene(namespace='TESTNS', name='1')
+        test_node_2 = gene(namespace='TESTNS', name='2')
 
         self.assertEqual(2, self.graph.number_of_nodes())
-        self.assertTrue(self.graph.has_node_with_data(test_node_1_dict))
-        self.assertTrue(self.graph.has_node_with_data(test_node_2_dict))
-
-        test_node_1 = test_node_1_dict.as_tuple()
-        test_node_2 = test_node_2_dict.as_tuple()
+        self.assertTrue(self.graph.has_node(test_node_1))
+        self.assertTrue(self.graph.has_node(test_node_2))
 
         self.assertEqual(1, self.parser.graph.number_of_edges())
 
@@ -426,15 +420,12 @@ class TestFull(TestTokenParserBase):
         ]
         self.parser.parse_lines(statements)
 
-        test_node_1_dict = gene(namespace='TESTNS', name='1')
-        test_node_2_dict = gene(namespace='TESTNS', name='2')
+        test_node_1 = gene(namespace='TESTNS', name='1')
+        test_node_2 = gene(namespace='TESTNS', name='2')
 
         self.assertEqual(2, self.parser.graph.number_of_nodes())
-        self.assertTrue(self.parser.graph.has_node_with_data(test_node_1_dict))
-        self.assertTrue(self.parser.graph.has_node_with_data(test_node_2_dict))
-
-        test_node_1 = test_node_1_dict.as_tuple()
-        test_node_2 = test_node_2_dict.as_tuple()
+        self.assertTrue(self.parser.graph.has_node(test_node_1))
+        self.assertTrue(self.parser.graph.has_node(test_node_2))
 
         self.assertEqual(1, self.parser.graph.number_of_edges())
 
@@ -458,15 +449,12 @@ class TestFull(TestTokenParserBase):
         ]
         self.parser.parse_lines(statements)
 
-        test_node_1_dict = gene(namespace='TESTNS', name='1')
-        test_node_2_dict = gene(namespace='TESTNS', name='2')
-
-        test_node_1 = test_node_1_dict.as_tuple()
-        test_node_2 = test_node_2_dict.as_tuple()
+        test_node_1 = gene(namespace='TESTNS', name='1')
+        test_node_2 = gene(namespace='TESTNS', name='2')
 
         self.assertEqual(2, self.parser.graph.number_of_nodes())
-        self.assertTrue(self.parser.graph.has_node_with_data(test_node_1_dict))
-        self.assertTrue(self.parser.graph.has_node_with_data(test_node_2_dict))
+        self.assertTrue(self.parser.graph.has_node(test_node_1))
+        self.assertTrue(self.parser.graph.has_node(test_node_2))
 
         self.assertEqual(1, self.parser.graph.number_of_edges())
 

@@ -11,8 +11,8 @@ import networkx as nx
 from six import string_types
 
 from .constants import (
-    ANNOTATIONS, CITATION, CITATION_AUTHORS, CITATION_ENTRIES, CITATION_REFERENCE, CITATION_TYPE,
-    PYBEL_EDGE_DATA_KEYS, VERSION,RELATION
+    CITATION_AUTHORS, CITATION_ENTRIES, CITATION_REFERENCE, CITATION_TYPE, PYBEL_EDGE_DATA_KEYS,
+    VERSION,
 )
 
 log = logging.getLogger(__name__)
@@ -122,7 +122,7 @@ def tokenize_version(version_string):
     return tuple(map(int, version_tuple))
 
 
-def citation_dict_to_tuple(citation):
+def citation_dict_to_tuple(citation): # FIXME throw away everything except type and reference
     """Convert the ``d[CITATION]`` entry in an edge data dictionary to a tuple
 
     :param dict citation:

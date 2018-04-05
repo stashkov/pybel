@@ -310,14 +310,13 @@ def _to_bel_lines_body(graph):
 
 def _to_bel_lines_footer(graph):
     """
-
     :param graph:
     :rtype: iter[str]
     """
     unqualified_edges_to_serialize = [
-        (u, v, d)
-        for u, v, d in graph.edges_iter(data=True)
-        if d[RELATION] in unqualified_edge_code and EVIDENCE not in d
+        (u, v, data)
+        for u, v, data in graph.edges(data=True)
+        if data[RELATION] in unqualified_edge_code and EVIDENCE not in data
     ]
 
     isolated_nodes_to_serialize = [
@@ -332,10 +331,10 @@ def _to_bel_lines_footer(graph):
         yield 'SET SupportingText = "{}"'.format(PYBEL_AUTOEVIDENCE)
 
         for u, v, data in unqualified_edges_to_serialize:
-            yield '{} {} {}'.format(graph.node_to_bel(u), data[RELATION], graph.node_to_bel(v))
+            yield '{} {} {}'.format(u.as_bel(), data[RELATION], v.as_bel())
 
         for node in isolated_nodes_to_serialize:
-            yield graph.node_to_bel(node)
+            yield node.as_bel()
 
         yield 'UNSET SupportingText'
         yield 'UNSET Citation'
