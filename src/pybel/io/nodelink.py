@@ -10,12 +10,12 @@ This module contains IO functions for interconversion between BEL graphs and Nod
 
 import json
 import os
-
-from networkx.readwrite.json_graph import node_link_data, node_link_graph
+from itertools import chain, count
 
 from .utils import ensure_version
 from ..constants import GRAPH_ANNOTATION_LIST, GRAPH_UNCACHED_NAMESPACES
 from ..struct import BELGraph
+from ..tokens import dict_to_entity
 from ..utils import list2tuple
 
 __all__ = [
@@ -30,6 +30,47 @@ __all__ = [
 ]
 
 
+def _augment_node_with_sha512(node):
+    """
+
+    :param BaseEntity node:
+    :return:
+    """
+    v = node.copy()
+    v['id'] = node.as_sha512()
+    return v
+
+
+def _node_link_data(graph):
+    """Converts a BEL graph to a node-link format
+
+    Adapted from :func:`networkx.readwrite.json_graph.node_link_data`
+
+    :param pybel.BELGraph graph:
+    :rtype: dict
+    """
+    nodes = sorted(graph)
+
+    mapping = dict(zip(nodes, count()))
+
+    return {
+        'directed': True,
+        'multigraph': True,
+        'graph': graph.graph,
+        'nodes': [
+            _augment_node_with_sha512(node)
+            for node in nodes
+        ],
+        'links': [
+            dict(chain(
+                data.items(),
+                [('source', mapping[u]), ('target', mapping[v]), ('key', key)]
+            ))
+            for u, v, key, data in graph.edges(keys=True, data=True)
+        ]
+    }
+
+
 def to_json(graph):
     """Converts this graph to a Node-Link JSON object
 
@@ -37,14 +78,18 @@ def to_json(graph):
     :return: A Node-Link JSON object representing the given graph
     :rtype: dict
     """
-    graph_json_dict = node_link_data(graph)
-    graph_json_dict['graph'][GRAPH_ANNOTATION_LIST] = {
-        k: list(sorted(v))
-        for k, v in graph_json_dict['graph'][GRAPH_ANNOTATION_LIST].items()
-    }
-    graph_json_dict['graph'][GRAPH_UNCACHED_NAMESPACES] = list(graph_json_dict['graph'][GRAPH_UNCACHED_NAMESPACES])
+    rv = _node_link_data(graph)
 
-    return graph_json_dict
+    # Convert annotation list definitions (which are sets) to canonicalized/sorted lists
+    rv['graph'][GRAPH_ANNOTATION_LIST] = {
+        key: list(sorted(values))
+        for key, values in rv['graph'][GRAPH_ANNOTATION_LIST].items()
+    }
+
+    # Convert set to list
+    rv['graph'][GRAPH_UNCACHED_NAMESPACES] = list(sorted(rv['graph'][GRAPH_UNCACHED_NAMESPACES]))
+
+    return rv
 
 
 def to_json_path(graph, path, **kwargs):
@@ -78,6 +123,42 @@ def to_jsons(graph, **kwargs):
     return json.dumps(graph_json_str, ensure_ascii=False, **kwargs)
 
 
+def _node_link_graph(data):
+    """Return graph from node-link data format
+
+    Adapted from :func:`networkx.readwrite.json_graph.node_link_graph`
+
+    :param dict data:
+    :rtype: BELGraph
+    """
+    graph = BELGraph()
+    graph.graph = data.get('graph', {})
+
+    mapping = []
+
+    for node_data in data['nodes']:
+        node = dict_to_entity(node_data)
+        graph.add_node_from_data(node)
+        mapping.append(node)
+
+    for data in data['links']:
+        src = data['source']
+        tgt = data['target']
+        key = data['key']
+
+        u = mapping[src]
+        v = mapping[tgt]
+
+        edgedata = {
+            k: v
+            for k, v in data.items()
+            if k not in {'source', 'target', 'key'}
+        }
+        graph.add_edge(u, v, key=key, **edgedata)
+
+    return graph
+
+
 def from_json(graph_json_dict, check_version=True):
     """Builds a graph from Node-Link JSON Object
 
@@ -88,7 +169,7 @@ def from_json(graph_json_dict, check_version=True):
     for i, node in enumerate(graph_json_dict['nodes']):
         graph_json_dict['nodes'][i]['id'] = list2tuple(graph_json_dict['nodes'][i]['id'])
 
-    graph = node_link_graph(graph_json_dict, directed=True, multigraph=True)
+    graph = _node_link_graph(graph_json_dict)
 
     # FIXME need to convert all nodes into BaseEntities
 

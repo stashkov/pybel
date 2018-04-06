@@ -12,7 +12,7 @@ from six import string_types
 from ..canonicalize import edge_to_bel
 from ..constants import *
 from ..dsl import activity
-from ..dsl.nodes import BaseAbundance, BaseEntity
+from ..dsl.nodes import BaseEntity
 from ..utils import get_version, hash_edge
 
 __all__ = [
@@ -79,8 +79,9 @@ class BELGraph(nx.MultiDiGraph):
 
         self._warnings = []
 
-        #: Maps node sha512 hashes to their actual nodes
-        self.hash_to_node = {}  # TODO
+        self.hash_to_node = {}
+        self.sha512_to_node = {}
+        self.hash_to_edge = {}
 
         if GRAPH_METADATA not in self.graph:
             self.graph[GRAPH_METADATA] = {}
@@ -132,7 +133,6 @@ class BELGraph(nx.MultiDiGraph):
         :rtype: dict[str,str]
         """
         return self.graph[GRAPH_METADATA]
-
 
     @property
     def name(self, *attrs):  # Needs *attrs since it's an override
@@ -377,6 +377,7 @@ class BELGraph(nx.MultiDiGraph):
         self.add_node_from_data(u)
         self.add_node_from_data(v)
         key = hash_edge(u, v, attr)
+        self.hash_to_edge[key] = (u, v)  # indexing
         self.add_edge(u, v, key=key, **attr)
         return key
 
@@ -483,6 +484,10 @@ class BELGraph(nx.MultiDiGraph):
 
         if node in self:
             return
+
+        # indexing
+        self.hash_to_node[node] = node
+        self.sha512_to_node[node.as_sha512()] = node
 
         super(BELGraph, self).add_node(node, **node)  # be a little redundant, for backwards compatability
 
