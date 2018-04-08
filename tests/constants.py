@@ -171,13 +171,14 @@ def assertHasEdge(self, u, v, graph, **kwargs):
     relation = kwargs[RELATION]
 
     if relation in unqualified_edges:
-        self.assertTrue(graph.has_unqualified_edge(u, v, relation))
+        _fmt = 'missing unqualified edge {} {} {}. Has edges:\n{}'
+        self.assertTrue(graph.has_unqualified_edge(u, v, relation),
+                        msg=_fmt.format(u, relation, v, dumps(graph[u][v], indent=2)))
 
     else:
         key = hash_edge(u, v, kwargs)
-        self.assertIn(key, graph[u][v],
-                      msg='could not find edge from {} to {}:\n{}'.format(u, v,
-                                                                          dumps(kwargs, indent=2, sort_keys=True)))
+        _fmt = 'could not find edge from {} to {}:\n{}'
+        self.assertIn(key, graph[u][v], msg=_fmt.format(u, v, dumps(kwargs, indent=2, sort_keys=True)))
 
         # equivalent to prior test
         self.assertTrue(graph.has_edge(u, v, key))
