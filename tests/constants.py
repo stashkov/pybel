@@ -558,17 +558,22 @@ BEL_THOROUGH_NODES = {
             abundance('CHEBI', '(3S)-3-hydroxy-3-methylglutaryl-CoA'),
             abundance('CHEBI', 'NADPH'),
             abundance('CHEBI', 'hydron')
-        ], products=[
+        ],
+        products=[
             abundance('CHEBI', 'NADP(+)'),
             abundance('CHEBI', 'mevalonate')
-        ]),
+        ]
+    ),
     abundance('CHEBI', '(3S)-3-hydroxy-3-methylglutaryl-CoA'),
     abundance('CHEBI', 'NADPH'),
     abundance('CHEBI', 'hydron'),
     abundance('CHEBI', 'mevalonate'),
     abundance('CHEBI', 'NADP(+)'),
     abundance('CHEBI', 'nitric oxide'),
-    complex_abundance([protein('HGNC', 'ITGAV'), protein('HGNC', 'ITGB3')]),
+    complex_abundance([
+        protein('HGNC', 'ITGAV'),
+        protein('HGNC', 'ITGB3')
+    ]),
     protein('HGNC', 'ITGAV'),
     protein('HGNC', 'ITGB3'),
     protein('HGNC', 'FADD'),
