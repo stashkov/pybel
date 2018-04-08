@@ -15,10 +15,10 @@ from pybel import (
     to_json_file, to_jsons, to_ndex, to_pickle, to_sif,
 )
 from pybel.constants import *
-from pybel.dsl import gene, hgvs
+from pybel.dsl import abundance, gene, hgvs, reaction
 from pybel.examples import sialic_acid_graph
 from pybel.io.exc import ImportVersionWarning, import_version_message_fmt
-from pybel.io.ndex_utils import NDEX_PASSWORD, NDEX_USERNAME
+from pybel.io.ndex_utils import NDEX_PASSWORD, NDEX_USERNAME, build_ndex_client
 from pybel.parser import BelParser
 from pybel.parser.exc import *
 from pybel.struct.summary import get_syntax_errors
@@ -104,6 +104,44 @@ class TestExampleInterchange(unittest.TestCase):
         reconstituted = from_cx(cx)
         self.assertEqual(set(graph), set(reconstituted))
 
+    def test_reaction_cx(self):
+        graph = BELGraph()
+        graph.add_entity(reaction(
+            reactants=[
+                abundance('CHEBI', '(3S)-3-hydroxy-3-methylglutaryl-CoA'),
+                abundance('CHEBI', 'NADPH'),
+                abundance('CHEBI', 'hydron')
+            ], products=[
+                abundance('CHEBI', 'NADP(+)'),
+                abundance('CHEBI', 'mevalonate')
+            ]), )
+        cx = to_cx(graph)
+        reconstituted = from_cx(cx)
+        self.assertEqual(set(graph), set(reconstituted))
+
+    @unittest.skipUnless(NDEX_USERNAME in os.environ and NDEX_PASSWORD in os.environ, 'Need NDEx credentials')
+    def test_reaction_ndex(self):
+        graph = BELGraph()
+        node = reaction(
+            reactants=[
+                abundance('CHEBI', '(3S)-3-hydroxy-3-methylglutaryl-CoA'),
+                abundance('CHEBI', 'NADPH'),
+                abundance('CHEBI', 'hydron')
+            ],
+            products=[
+                abundance('CHEBI', 'NADP(+)'),
+                abundance('CHEBI', 'mevalonate')
+            ]
+        )
+        graph.add_entity(node)
+        network_id = to_ndex(graph)
+        time.sleep(5)
+        reconstituted = from_ndex(network_id)
+        self.assertEqual(set(graph), set(reconstituted))
+
+        # If the test passes, do some clean-up
+        ndex_client = build_ndex_client()
+        ndex_client.delete_network(network_id)
 
 class TestInterchange(TemporaryCacheClsMixin, BelReconstitutionMixin):
     @classmethod
@@ -197,9 +235,13 @@ class TestInterchange(TemporaryCacheClsMixin, BelReconstitutionMixin):
     def test_thorough_ndex(self):
         """Tests that a document can be uploaded and downloaded. Sleeps in the middle so that NDEx can process"""
         network_id = to_ndex(self.thorough_graph)
-        time.sleep(10)
+        time.sleep(10)  # make sure network has time to process. usually very fast.
         reconstituted = from_ndex(network_id)
         self.bel_thorough_reconstituted(reconstituted, check_warnings=False, check_citation_name=False)
+
+        # If the test passes, do some clean-up
+        ndex_client = build_ndex_client()
+        ndex_client.delete_network(network_id)
 
     def test_thorough_upgrade(self):
         lines = to_bel_lines(self.thorough_graph)
