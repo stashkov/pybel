@@ -8,11 +8,11 @@ from collections import Iterable, MutableMapping, defaultdict
 from datetime import datetime
 
 import networkx as nx
-from six import string_types
+import six
 
 from .constants import (
-    CITATION_AUTHORS, CITATION_ENTRIES, CITATION_REFERENCE, CITATION_TYPE, PYBEL_EDGE_DATA_KEYS,
-    VERSION,
+    ANNOTATIONS, CITATION, CITATION_AUTHORS, CITATION_ENTRIES, CITATION_REFERENCE, CITATION_TYPE,
+    EVIDENCE, OBJECT, RELATION, SUBJECT, VERSION,
 )
 
 log = logging.getLogger(__name__)
@@ -77,24 +77,12 @@ def flatten_graph_data(graph):
     g = nx.MultiDiGraph(**graph.graph)
 
     for node, data in graph.nodes(data=True):
-        g.add_node(node, data)
+        g.add_node(node, **data)
 
     for u, v, key, data in graph.edges(data=True, keys=True):
-        g.add_edge(u, v, key=key, attr_dict=flatten_dict(data))
+        g.add_edge(u, v, key=key, **flatten_dict(data))
 
     return g
-
-
-def list2tuple(l):
-    """Recursively converts a nested list to a nested tuple
-
-    :type l: list
-    :rtype: tuple
-    """
-    if isinstance(l, list):
-        return tuple(list2tuple(e) for e in l)
-    else:
-        return l
 
 
 def get_version():
@@ -122,7 +110,7 @@ def tokenize_version(version_string):
     return tuple(map(int, version_tuple))
 
 
-def citation_dict_to_tuple(citation): # FIXME throw away everything except type and reference
+def citation_dict_to_tuple(citation):  # FIXME throw away everything except type and reference
     """Convert the ``d[CITATION]`` entry in an edge data dictionary to a tuple
 
     :param dict citation:
@@ -137,7 +125,7 @@ def citation_dict_to_tuple(citation): # FIXME throw away everything except type 
     if all(x in citation for x in CITATION_ENTRIES[3:5]):
         ff = tuple(citation[x] for x in CITATION_ENTRIES[:4])
 
-        if isinstance(citation[CITATION_AUTHORS], string_types):
+        if isinstance(citation[CITATION_AUTHORS], six.string_types):
             return ff + (citation[CITATION_AUTHORS],)
         else:
             return ff + ('|'.join(citation[CITATION_AUTHORS]),)
@@ -172,17 +160,22 @@ PUBLISHED_DATE_FMT_2 = '%d:%m:%Y %H:%M'
 DATE_VERSION_FMT = '%Y%m%d'
 
 
+def _check_valid_date_fmt(s, fmt):
+    try:
+        datetime.strptime(s, fmt)
+    except ValueError:
+        return False
+    else:
+        return True
+
+
 def valid_date(s):
     """Checks that a string represents a valid date in ISO 8601 format YYYY-MM-DD
     
     :type s: str
     :rtype: bool
     """
-    try:
-        datetime.strptime(s, PUBLISHED_DATE_FMT)
-        return True
-    except ValueError:
-        return False
+    return _check_valid_date_fmt(s, PUBLISHED_DATE_FMT)
 
 
 def valid_date_version(s):
@@ -191,11 +184,7 @@ def valid_date_version(s):
     :type s: str
     :rtype: bool
     """
-    try:
-        datetime.strptime(s, DATE_VERSION_FMT)
-        return True
-    except ValueError:
-        return False
+    return _check_valid_date_fmt(s, DATE_VERSION_FMT)
 
 
 def parse_datetime(s):
@@ -205,19 +194,34 @@ def parse_datetime(s):
     :return: A parsed date object
     :rtype: datetime.date
     """
-    try:
-        dt = datetime.strptime(s, CREATION_DATE_FMT)
-        return dt
-    except:
+    for fmt in (CREATION_DATE_FMT, PUBLISHED_DATE_FMT, PUBLISHED_DATE_FMT_2):
         try:
-            dt = datetime.strptime(s, PUBLISHED_DATE_FMT)
+            dt = datetime.strptime(s, fmt)
             return dt
-        except:
-            try:
-                dt = datetime.strptime(s, PUBLISHED_DATE_FMT_2)
-                return dt
-            except:
-                raise ValueError('Incorrect datetime format for {}'.format(s))
+        except ValueError:
+            continue
+
+    raise ValueError('Incorrect datetime format for {}'.format(s))
+
+
+def _digest_bytes(b):
+    tuple_sha512 = hashlib.sha512(b)
+    return tuple_sha512.hexdigest()[:8]
+
+
+def hash_dump(data):
+    """Hashes an arbitrary JSON dictionary by dumping it in sorted order, encoding it in UTF-8, then hashing the bytes
+
+    :param data: An arbitrary JSON-serializable object
+    :type data: dict or list or tuple
+    :rtype: str
+    """
+    return _digest_bytes(json.dumps(data, ensure_ascii=False, sort_keys=True).encode('utf-8'))
+
+
+def _hash_tuple(t):
+    tuple_bytes = pickle.dumps(t)
+    return _digest_bytes(tuple_bytes)
 
 
 def hash_node(node_tuple):
@@ -227,32 +231,59 @@ def hash_node(node_tuple):
     :return: A hashed version of the node tuple using :func:`hashlib.sha512` hash of the binary pickle dump
     :rtype: str
     """
-    return hashlib.sha512(pickle.dumps(node_tuple)).hexdigest()
+    return _hash_tuple(node_tuple)
 
 
-def _extract_pybel_data(data):
-    """Extracts only the PyBEL-specific data from the given edge data dictionary
-
-    :param dict data: An edge data dictionary
-    :rtype: dict
+def _hash_citation(data):
     """
-    return {
-        key: value
-        for key, value in data.items()
-        if key in PYBEL_EDGE_DATA_KEYS
-    }
+    :rtype: str
+    """
+    citation = data.get(CITATION)
+    if citation is None:
+        return tuple()
+
+    return citation[CITATION_TYPE], citation[CITATION_REFERENCE]
+
+
+def _hash_modifier(data, side):
+    """
+    :rtype: str
+    """
+    modifier = data.get(side)
+    if modifier is None:
+        return ''
+    return json.dumps(modifier, ensure_ascii=False, sort_keys=True)
+
+
+def _hash_annotations(data):
+    """
+    :rtype: str
+    """
+    annotations = data.get(ANNOTATIONS)
+    if annotations is None:
+        return ''
+    return json.dumps(annotations, ensure_ascii=False, sort_keys=True)
 
 
 def _edge_to_tuple(u, v, data):
     """Converts an edge to tuple
 
-    :param tuple u: The source BEL node
-    :param tuple v: The target BEL node
+    :param BaseEntity u: The source BEL node
+    :param BaseEntity v: The target BEL node
     :param dict data: The edge's data dictionary
     :return: A tuple that can be hashed representing this edge. Makes no promises to its structure.
+    :rtype: tuple
     """
-    extracted_data_dict = _extract_pybel_data(data)
-    return u, v, json.dumps(extracted_data_dict, ensure_ascii=False, sort_keys=True)
+    return (
+        u.as_tuple(),
+        v.as_tuple(),
+        data[RELATION],
+        _hash_citation(data),
+        data.get(EVIDENCE, ''),
+        _hash_annotations(data),
+        _hash_modifier(data, SUBJECT),
+        _hash_modifier(data, OBJECT),
+    )
 
 
 def hash_edge(u, v, data):
@@ -264,9 +295,9 @@ def hash_edge(u, v, data):
     :return: A hashed version of the edge tuple using md5 hash of the binary pickle dump of u, v, and the json dump of d
     :rtype: str
     """
-    edge_tuple = _edge_to_tuple(u.as_tuple(), v.as_tuple(), data)
-    edge_tuple_bytes = pickle.dumps(edge_tuple)
-    return hashlib.sha512(edge_tuple_bytes).hexdigest()
+    edge_tuple = _edge_to_tuple(u, v, data)
+    edge_sha512 = hash_dump(edge_tuple)
+    return edge_sha512
 
 
 def subdict_matches(target, query, partial_match=True):
@@ -287,9 +318,9 @@ def subdict_matches(target, query, partial_match=True):
     for k, v in query.items():
         if k not in target:
             return False
-        elif not isinstance(v, (int, string_types, dict, Iterable)):
+        elif not isinstance(v, (int, six.string_types, dict, Iterable)):
             raise ValueError('invalid value: {}'.format(v))
-        elif isinstance(v, (int, string_types)) and target[k] != v:
+        elif isinstance(v, (int, six.string_types)) and target[k] != v:
             return False
         elif isinstance(v, dict):
             if partial_match:
@@ -303,16 +334,6 @@ def subdict_matches(target, query, partial_match=True):
             return False
 
     return True
-
-
-def hash_dump(data):
-    """Hashes an arbitrary JSON dictionary by dumping it in sorted order, encoding it in UTF-8, then hashing the bytes
-
-    :param data: An arbitrary JSON-serializable object
-    :type data: dict or list or tuple
-    :rtype: str
-    """
-    return hashlib.sha512(json.dumps(data, sort_keys=True).encode('utf-8')).hexdigest()
 
 
 def hash_citation(type, reference):

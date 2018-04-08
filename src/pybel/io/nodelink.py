@@ -15,8 +15,6 @@ from itertools import chain, count
 from .utils import ensure_version
 from ..constants import GRAPH_ANNOTATION_LIST, GRAPH_UNCACHED_NAMESPACES
 from ..struct import BELGraph
-from ..tokens import dict_to_entity
-from ..utils import list2tuple
 
 __all__ = [
     'to_json',
@@ -32,9 +30,8 @@ __all__ = [
 
 def _augment_node_with_sha512(node):
     """
-
     :param BaseEntity node:
-    :return:
+    :rtype: dict
     """
     v = node.copy()
     v['id'] = node.as_sha512()
@@ -137,8 +134,7 @@ def _node_link_graph(data):
     mapping = []
 
     for node_data in data['nodes']:
-        node = dict_to_entity(node_data)
-        graph.add_node_from_data(node)
+        node = graph.add_node_from_dict(node_data)
         mapping.append(node)
 
     for data in data['links']:
@@ -166,14 +162,7 @@ def from_json(graph_json_dict, check_version=True):
     :param bool check_version: Checks if the graph was produced by this version of PyBEL
     :rtype: BELGraph
     """
-    for i, node in enumerate(graph_json_dict['nodes']):
-        graph_json_dict['nodes'][i]['id'] = list2tuple(graph_json_dict['nodes'][i]['id'])
-
     graph = _node_link_graph(graph_json_dict)
-
-    # FIXME need to convert all nodes into BaseEntities
-
-    graph = BELGraph(data=graph)
     return ensure_version(graph, check_version=check_version)
 
 

@@ -2,7 +2,6 @@
 
 """This example has some stuff about statins"""
 
-from ..constants import *
 from ..dsl.nodes import abundance, protein
 from ..struct.graph import BELGraph
 

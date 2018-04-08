@@ -24,7 +24,7 @@ from .utils import WCW, nest, one_of_tags, quote, triple
 from .. import language
 from ..constants import *
 from ..dsl.nodes import BaseEntity
-from ..tokens import modifier_po_to_dict, dict_to_entity
+from ..tokens import modifier_po_to_dict
 
 __all__ = ['BelParser']
 
@@ -833,16 +833,15 @@ class BelParser(BaseParser):
         if MODIFIER in tokens:
             return self.ensure_node(tokens[TARGET])
 
-        node = dict_to_entity(tokens)
-
-        if not isinstance(node, BaseEntity):
-            raise TypeError('po_to_dict did not return BaseEntity: {} {}'.format(node.__class__.__name__, node))
-
-        self.graph.add_node_from_data(node)
-
-        return node
+        return self.graph.add_node_from_dict(tokens)
 
     def handle_translocation_illegal(self, line, position, tokens):
+        """Handles malformed translocations and throws a warning
+
+        :param str line: The line being parsed
+        :param int position: The position in the line being parsed
+        :param pyparsing.ParseResult tokens: The tokens from PyParsing
+        """
         raise MalformedTranslocationWarning(self.line_number, line, position, tokens)
 
 

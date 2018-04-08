@@ -14,8 +14,7 @@ from pybel.dsl.nodes import (
 from pybel.parser import BelParser
 from pybel.parser.exc import MalformedTranslocationWarning
 from pybel.parser.parse_bel import modifier_po_to_dict
-
-from tests.constants import TestTokenParserBase, assertHasEdge, assertHasNode, update_provenance
+from tests.constants import TestTokenParserBase, assertHasEdge, assertHasNode, update_provenance, test_evidence_text, test_citation_dict
 
 log = logging.getLogger(__name__)
 
@@ -101,7 +100,7 @@ class TestGene(TestTokenParserBase):
         node = gene('HGNC', 'AKT1')
 
         self.assertEqual(1, self.parser.graph.number_of_nodes())
-        self.assertHasNode(node, **node)
+        self.assertHasNode(node)
 
     def test_214b(self):
         statement = 'g(HGNC:AKT1, loc(GOCC:intracellular))'
@@ -121,7 +120,7 @@ class TestGene(TestTokenParserBase):
         self.assertEqual(expected_dict, result.asDict())
 
         expected_node = gene('HGNC', 'AKT1')
-        self.assertHasNode(expected_node, **expected_node)
+        self.assertHasNode(expected_node)
 
     def test_214c(self):
         """Test variant"""
@@ -138,13 +137,8 @@ class TestGene(TestTokenParserBase):
 
         expected_node = gene('HGNC', 'AKT1', variants=hgvs(TEST_PROTEIN_VARIANT))
         self.assertEqual('g(HGNC:AKT1, var(p.Phe508del))', expected_node.as_bel())
-
-        parent = expected_node.get_parent()
-        self.assertIsNotNone(parent)
-
-        self.assertHasNode(expected_node, **expected_node)
-        self.assertHasNode(parent, **parent)
-        self.assertHasEdge(parent, expected_node, relation=HAS_VARIANT)
+        self.assertHasNode(expected_node)
+        self.help_test_parent_in_graph(expected_node)
 
     def test_gmod(self):
         """Test Gene Modification"""
@@ -159,35 +153,25 @@ class TestGene(TestTokenParserBase):
         }
         self.assertEqual(expected_result, result.asDict())
 
-        expected_node = gene('HGNC', 'AKT1', variants=gmod('Me'))
-        self.assertEqual('g(HGNC:AKT1, gmod(Me))', expected_node.as_bel())
-
-        self.assertHasNode(expected_node, **{FUNCTION: GENE})
-
-        parent = expected_node.get_parent()
-        self.assertIsNotNone(parent)
-        self.assertHasNode(parent, **parent)
-        self.assertHasEdge(parent, expected_node, relation=HAS_VARIANT)
+        node = gene('HGNC', 'AKT1', variants=gmod('Me'))
+        self.assertEqual('g(HGNC:AKT1, gmod(Me))', node.as_bel())
+        self.assertHasNode(node)
+        self.help_test_parent_in_graph(node)
 
     def test_214d(self):
         """Test BEL 1.0 gene substitution"""
         statement = 'g(HGNC:AKT1,sub(G,308,A))'
         result = self.parser.gene.parseString(statement)
 
-        expected_result = gene(
+        node = gene(
             name='AKT1',
             namespace='HGNC',
             variants=[hgvs(TEST_GENE_VARIANT)]
         )
 
-        self.assertEqual(expected_result, result.asDict())
-        self.assertEqual('g(HGNC:AKT1, var(c.308G>A))', expected_result.as_bel())
-
-        parent = expected_result.get_parent()
-        self.assertIsNotNone(parent)
-        self.assertHasNode(parent, **parent)
-
-        self.assertHasEdge(parent, expected_result, relation=HAS_VARIANT)
+        self.assertEqual('g(HGNC:AKT1, var(c.308G>A))', node.as_bel())
+        self.assertHasNode(node)
+        self.help_test_parent_in_graph(node)
 
     def test_variant_location(self):
         """Test BEL 1.0 gene substitution with location tag"""
@@ -211,15 +195,10 @@ class TestGene(TestTokenParserBase):
         }
         self.assertEqual(expected_result, result.asDict())
 
-        expected_node = gene('HGNC', 'AKT1', variants=hgvs(TEST_GENE_VARIANT))
-        self.assertEqual('g(HGNC:AKT1, var(c.308G>A))', expected_node.as_bel())
-        self.assertHasNode(expected_node, **expected_node)
-
-        parent = expected_node.get_parent()
-        self.assertIsNotNone(parent)
-        self.assertHasNode(parent, **parent)
-
-        self.assertHasEdge(parent, expected_node, relation=HAS_VARIANT)
+        node = gene('HGNC', 'AKT1', variants=hgvs(TEST_GENE_VARIANT))
+        self.assertEqual('g(HGNC:AKT1, var(c.308G>A))', node.as_bel())
+        self.assertHasNode(node)
+        self.help_test_parent_in_graph(node)
 
     def test_multiple_variants(self):
         """Test multiple variants"""
@@ -244,7 +223,7 @@ class TestGene(TestTokenParserBase):
             hgvs(TEST_PROTEIN_VARIANT)
         ])
         self.assertEqual('g(HGNC:AKT1, var(c.1521_1523delCTT), var(c.308G>A), var(p.Phe508del))', node.as_bel())
-        self.assertHasNode(node, **node)
+        self.assertHasNode(node)
         self.help_test_parent_in_graph(node)
 
     def test_gene_fusion_1(self):
@@ -272,10 +251,10 @@ class TestGene(TestTokenParserBase):
         self.assertEqual(expected_dict, result.asDict())
 
         expected_node = gene_fusion(
-            partner_5p=gene('HGNC', 'TMPRSS2'),
-            range_5p=fusion_range('c', 1, 79),
-            partner_3p=gene('HGNC', 'ERG'),
-            range_3p=fusion_range('c', 312, 5034)
+            partner5p=gene('HGNC', 'TMPRSS2'),
+            range5p=fusion_range('c', 1, 79),
+            partner3p=gene('HGNC', 'ERG'),
+            range3p=fusion_range('c', 312, 5034)
         )
         self.assertEqual(statement, expected_node.as_bel())
         self.assertHasNode(expected_node)
@@ -305,10 +284,10 @@ class TestGene(TestTokenParserBase):
         self.assertEqual(expected_dict, result.asDict())
 
         expected_node = gene_fusion(
-            partner_5p=gene('HGNC', 'TMPRSS2'),
-            range_5p=fusion_range('c', 1, '?'),
-            partner_3p=gene('HGNC', 'ERG'),
-            range_3p=fusion_range('c', 312, 5034)
+            partner5p=gene('HGNC', 'TMPRSS2'),
+            range5p=fusion_range('c', 1, '?'),
+            partner3p=gene('HGNC', 'ERG'),
+            range3p=fusion_range('c', 312, 5034)
         )
         self.assertEqual(statement, expected_node.as_bel())
         self.assertHasNode(expected_node)
@@ -335,9 +314,9 @@ class TestGene(TestTokenParserBase):
         self.assertEqual(expected_dict, result.asDict())
 
         expected_node = gene_fusion(
-            partner_5p=gene('HGNC', 'TMPRSS2'),
-            partner_3p=gene('HGNC', 'ERG'),
-            range_3p=fusion_range('c', 312, 5034)
+            partner5p=gene('HGNC', 'TMPRSS2'),
+            partner3p=gene('HGNC', 'ERG'),
+            range3p=fusion_range('c', 312, 5034)
         )
         self.assertEqual(statement, expected_node.as_bel())
         self.assertHasNode(expected_node)
@@ -369,10 +348,10 @@ class TestGene(TestTokenParserBase):
         self.assertEqual(expected_dict, result.asDict())
 
         expected_node = gene_fusion(
-            partner_5p=gene('HGNC', 'BCR'),
-            range_5p=fusion_range('c', '?', 1875),
-            partner_3p=gene('HGNC', 'JAK2'),
-            range_3p=fusion_range('c', 2626, '?')
+            partner5p=gene('HGNC', 'BCR'),
+            range5p=fusion_range('c', '?', 1875),
+            partner3p=gene('HGNC', 'JAK2'),
+            range3p=fusion_range('c', 2626, '?')
         )
         self.assertEqual('g(fus(HGNC:BCR, c.?_1875, HGNC:JAK2, c.2626_?))', expected_node.as_bel())
         self.assertHasNode(expected_node)
@@ -393,8 +372,8 @@ class TestGene(TestTokenParserBase):
         self.assertEqual(expected_dict, result.asDict())
 
         expected_node = gene_fusion(
-            partner_5p=gene('HGNC', 'CHCHD4'),
-            partner_3p=gene('HGNC', 'AIFM1'),
+            partner5p=gene('HGNC', 'CHCHD4'),
+            partner3p=gene('HGNC', 'AIFM1'),
         )
         self.assertEqual('g(fus(HGNC:CHCHD4, ?, HGNC:AIFM1, ?))', expected_node.as_bel())
         self.assertHasNode(expected_node)
@@ -407,15 +386,10 @@ class TestGene(TestTokenParserBase):
         expected_result = [GENE, 'SNP', 'rs113993960', [HGVS, 'c.1521_1523delCTT']]
         self.assertEqual(expected_result, result.asList())
 
-        expected_node = gene('SNP', 'rs113993960', variants=hgvs('c.1521_1523delCTT'))
-        self.assertEqual('g(SNP:rs113993960, var(c.1521_1523delCTT))', expected_node.as_bel())
-        self.assertHasNode(expected_node)
-
-        parent = expected_node.get_parent()
-        self.assertIsNotNone(parent)
-        self.assertHasNode(parent)
-
-        self.assertHasEdge(parent, expected_node, relation=HAS_VARIANT)
+        node = gene('SNP', 'rs113993960', variants=hgvs('c.1521_1523delCTT'))
+        self.assertEqual('g(SNP:rs113993960, var(c.1521_1523delCTT))', node.as_bel())
+        self.assertHasNode(node)
+        self.help_test_parent_in_graph(node)
 
     def test_gene_variant_chromosome(self):
         """2.2.2 chromosome"""
@@ -425,15 +399,10 @@ class TestGene(TestTokenParserBase):
         expected_result = [GENE, 'REF', 'NC_000007.13', [HGVS, 'g.117199646_117199648delCTT']]
         self.assertEqual(expected_result, result.asList())
 
-        gene_node = gene('REF', 'NC_000007.13', variants=hgvs('g.117199646_117199648delCTT'))
-        self.assertEqual(statement, gene_node.as_bel())
-        self.assertHasNode(gene_node, **gene_node)
-
-        parent = gene_node.get_parent()
-        self.assertIsNotNone(parent)
-        self.assertHasNode(parent, **parent)
-
-        self.assertHasEdge(parent, gene_node, relation=HAS_VARIANT)
+        node = gene('REF', 'NC_000007.13', variants=hgvs('g.117199646_117199648delCTT'))
+        self.assertEqual(statement, node.as_bel())
+        self.assertHasNode(node)
+        self.help_test_parent_in_graph(node)
 
     def test_gene_variant_deletion(self):
         """2.2.2 gene-coding DNA reference sequence"""
@@ -450,15 +419,10 @@ class TestGene(TestTokenParserBase):
         }
         self.assertEqual(expected_result, result.asDict())
 
-        expected_node = gene('HGNC', 'CFTR', variants=hgvs('c.1521_1523delCTT'))
-        self.assertEqual(statement, expected_node.as_bel())
-        self.assertHasNode(expected_node, **expected_node)
-
-        parent = expected_node.get_parent()
-        self.assertIsNotNone(parent)
-        self.assertHasNode(parent, **parent)
-
-        self.assertHasEdge(parent, expected_node, relation=HAS_VARIANT)
+        node = gene('HGNC', 'CFTR', variants=hgvs('c.1521_1523delCTT'))
+        self.assertEqual(statement, node.as_bel())
+        self.assertHasNode(node)
+        self.help_test_parent_in_graph(node)
 
 
 class TestMiRNA(TestTokenParserBase):
@@ -484,7 +448,7 @@ class TestMiRNA(TestTokenParserBase):
 
         node = mirna('HGNC', 'MIR21')
         self.assertEqual(statement, node.as_bel())
-        self.assertHasNode(node, **node)
+        self.assertHasNode(node)
 
     def test_long(self):
         statement = 'microRNAAbundance(HGNC:MIR21)'
@@ -542,15 +506,10 @@ class TestMiRNA(TestTokenParserBase):
 
         self.assertEqual(2, self.graph.number_of_nodes())
 
-        expected_node = mirna('HGNC', 'MIR21', variants=hgvs(TEST_PROTEIN_VARIANT))
-        self.assertEqual('m(HGNC:MIR21, var(p.Phe508del))', expected_node.as_bel())
-        self.assertHasNode(expected_node)
-
-        parent = expected_node.get_parent()
-        self.assertIsNotNone(parent)
-        self.assertHasNode(parent)
-
-        self.assertHasEdge(parent, expected_node, relation=HAS_VARIANT)
+        node = mirna('HGNC', 'MIR21', variants=hgvs(TEST_PROTEIN_VARIANT))
+        self.assertEqual('m(HGNC:MIR21, var(p.Phe508del))', node.as_bel())
+        self.assertHasNode(node)
+        self.help_test_parent_in_graph(node)
 
     def test_mirna_variant_location(self):
         statement = 'm(HGNC:MIR21,var(p.Phe508del),loc(GOCC:intracellular))'
@@ -575,15 +534,10 @@ class TestMiRNA(TestTokenParserBase):
 
         self.assertEqual(2, self.graph.number_of_nodes())
 
-        expected_node = mirna('HGNC', 'MIR21', variants=hgvs(TEST_PROTEIN_VARIANT))
-        self.assertEqual('m(HGNC:MIR21, var(p.Phe508del))', expected_node.as_bel())
-        self.assertHasNode(expected_node)
-
-        parent = expected_node.get_parent()
-        self.assertIsNotNone(parent)
-        self.assertHasNode(parent)
-
-        self.assertHasEdge(parent, expected_node, relation=HAS_VARIANT)
+        node = mirna('HGNC', 'MIR21', variants=hgvs(TEST_PROTEIN_VARIANT))
+        self.assertEqual('m(HGNC:MIR21, var(p.Phe508del))', node.as_bel())
+        self.assertHasNode(node)
+        self.help_test_parent_in_graph(node)
 
 
 class TestProtein(TestTokenParserBase):
@@ -657,12 +611,8 @@ class TestProtein(TestTokenParserBase):
 
         node = protein('HGNC', 'AKT1', variants=[protein_substitution('Ala', 127, 'Tyr'), pmod(name='Ph', code='Ser')])
         self.assertEqual('p(HGNC:AKT1, pmod(Ph, Ser), var(p.Ala127Tyr))', node.as_bel())
-        self.assertHasNode(node, **node)
-
-        parent = node.get_parent()
-        self.assertIsNotNone(parent)
-        self.assertHasNode(parent, **parent)
-        self.assertHasEdge(parent, node, relation=HAS_VARIANT)
+        self.assertHasNode(node)
+        self.help_test_parent_in_graph(node)
 
     def test_protein_fusion_1(self):
         statement = 'p(fus(HGNC:TMPRSS2, p.1_79, HGNC:ERG, p.312_5034))'
@@ -689,10 +639,10 @@ class TestProtein(TestTokenParserBase):
         self.assertEqual(expected_dict, result.asDict())
 
         expected_node = protein_fusion(
-            partner_5p=protein('HGNC', 'TMPRSS2'),
-            partner_3p=protein('HGNC', 'ERG'),
-            range_5p=fusion_range('p', 1, 79),
-            range_3p=fusion_range('p', 312, 5034)
+            partner5p=protein('HGNC', 'TMPRSS2'),
+            partner3p=protein('HGNC', 'ERG'),
+            range5p=fusion_range('p', 1, 79),
+            range3p=fusion_range('p', 312, 5034)
         )
         self.assertEqual(statement, expected_node.as_bel())
         self.assertHasNode(expected_node)
@@ -725,10 +675,10 @@ class TestProtein(TestTokenParserBase):
         self.assertEqual(expected_dict, result.asDict())
 
         expected_node = protein_fusion(
-            partner_5p=protein('HGNC', 'BCR'),
-            partner_3p=protein('HGNC', 'JAK2'),
-            range_5p=fusion_range('p', '?', 1875),
-            range_3p=fusion_range('p', 2626, '?')
+            partner5p=protein('HGNC', 'BCR'),
+            partner3p=protein('HGNC', 'JAK2'),
+            range5p=fusion_range('p', '?', 1875),
+            range3p=fusion_range('p', 2626, '?')
         )
         self.assertEqual('p(fus(HGNC:BCR, p.?_1875, HGNC:JAK2, p.2626_?))', expected_node.as_bel())
         self.assertHasNode(expected_node)
@@ -748,7 +698,7 @@ class TestProtein(TestTokenParserBase):
         }
         self.assertEqual(expected_dict, result.asDict())
 
-        expected_node = protein_fusion(partner_5p=protein('HGNC', 'CHCHD4'), partner_3p=protein('HGNC', 'AIFM1'))
+        expected_node = protein_fusion(partner5p=protein('HGNC', 'CHCHD4'), partner3p=protein('HGNC', 'AIFM1'))
         self.assertEqual('p(fus(HGNC:CHCHD4, ?, HGNC:AIFM1, ?))', expected_node.as_bel())
         self.assertHasNode(expected_node)
 
@@ -758,7 +708,7 @@ class TestProtein(TestTokenParserBase):
 
         node = protein('HGNC', 'AKT1', variants=hgvs('p.40*'))  # FIXME replace with truncation?
         self.assertEqual('p(HGNC:AKT1, var(p.40*))', node.as_bel())
-        self.assertHasNode(node, **{FUNCTION: PROTEIN})
+        self.assertHasNode(node)
         self.help_test_parent_in_graph(node)
 
     def test_protein_trunc_2(self):
@@ -770,7 +720,7 @@ class TestProtein(TestTokenParserBase):
 
         node = protein('HGNC', 'AKT1', variants=hgvs('p.Cys40*'))
         self.assertEqual(statement, node.as_bel())
-        self.assertHasNode(node, **{FUNCTION: PROTEIN})
+        self.assertHasNode(node)
         self.help_test_parent_in_graph(node)
 
     def test_protein_trunc_3(self):
@@ -782,7 +732,7 @@ class TestProtein(TestTokenParserBase):
 
         node = protein('HGNC', 'AKT1', variants=hgvs('p.Arg1851*'))
         self.assertEqual(statement, node.as_bel())
-        self.assertHasNode(node, **{FUNCTION: PROTEIN})
+        self.assertHasNode(node)
         self.help_test_parent_in_graph(node)
 
     def test_protein_pmod_1(self):
@@ -792,7 +742,7 @@ class TestProtein(TestTokenParserBase):
 
         node = protein('HGNC', 'AKT1', variants=pmod('Ph', code='Ser', position=473))
         self.assertEqual('p(HGNC:AKT1, pmod(Ph, Ser, 473))', node.as_bel())
-        self.assertHasNode(node, **node)
+        self.assertHasNode(node)
         self.help_test_parent_in_graph(node)
 
     def test_protein_pmod_2(self):
@@ -802,7 +752,7 @@ class TestProtein(TestTokenParserBase):
 
         node = protein('HGNC', 'AKT1', variants=pmod('Ph', code='Ser', position=473))
         self.assertEqual('p(HGNC:AKT1, pmod(Ph, Ser, 473))', node.as_bel())
-        self.assertHasNode(node, **node)
+        self.assertHasNode(node)
         self.help_test_parent_in_graph(node)
 
     def test_protein_pmod_3(self):
@@ -822,7 +772,7 @@ class TestProtein(TestTokenParserBase):
 
         node = protein('HGNC', 'HRAS', variants=pmod('Palm'))
         self.assertEqual(statement, node.as_bel())
-        self.assertHasNode(node, **node)
+        self.assertHasNode(node)
         self.help_test_parent_in_graph(node)
 
     def test_protein_variant_reference(self):
@@ -834,7 +784,7 @@ class TestProtein(TestTokenParserBase):
 
         node = protein('HGNC', 'CFTR', variants=hgvs_reference())
         self.assertEqual(statement, node.as_bel())
-        self.assertHasNode(node, **node)
+        self.assertHasNode(node)
         self.help_test_parent_in_graph(node)
 
     def test_protein_variant_unspecified(self):
@@ -847,7 +797,7 @@ class TestProtein(TestTokenParserBase):
 
         node = protein('HGNC', 'CFTR', variants=hgvs_unspecified())
         self.assertEqual(statement, node.as_bel())
-        self.assertHasNode(node, **node)
+        self.assertHasNode(node)
         self.help_test_parent_in_graph(node)
 
     def test_protein_variant_substitution(self):
@@ -859,7 +809,7 @@ class TestProtein(TestTokenParserBase):
 
         node = protein('HGNC', 'CFTR', variants=protein_substitution('Gly', 576, 'Ala'))
         self.assertEqual(statement, node.as_bel())
-        self.assertHasNode(node, **node)
+        self.assertHasNode(node)
         self.help_test_parent_in_graph(node)
 
     def test_protein_variant_deletion(self):
@@ -872,7 +822,7 @@ class TestProtein(TestTokenParserBase):
 
         node = protein('HGNC', 'CFTR', variants=protein_deletion('Phe', 508))
         self.assertEqual(statement, node.as_bel())
-        self.assertHasNode(node, **node)
+        self.assertHasNode(node)
         self.help_test_parent_in_graph(node)
 
     def test_protein_fragment_known(self):
@@ -882,7 +832,7 @@ class TestProtein(TestTokenParserBase):
 
         node = protein('HGNC', 'YFG', variants=fragment(5, 20))
         self.assertEqual(statement, node.as_bel())
-        self.assertHasNode(node, **node)
+        self.assertHasNode(node)
         self.help_test_parent_in_graph(node)
 
     def test_protein_fragment_unbounded(self):
@@ -892,7 +842,7 @@ class TestProtein(TestTokenParserBase):
 
         node = protein('HGNC', 'YFG', variants=fragment(start=1))
         self.assertEqual(statement, node.as_bel())
-        self.assertHasNode(node, **node)
+        self.assertHasNode(node)
         self.help_test_parent_in_graph(node)
 
     def test_protein_fragment_unboundTerminal(self):
@@ -902,7 +852,7 @@ class TestProtein(TestTokenParserBase):
 
         node = protein('HGNC', 'YFG', variants=fragment(stop='*'))
         self.assertEqual(statement, node.as_bel())
-        self.assertHasNode(node, **node)
+        self.assertHasNode(node)
         self.help_test_parent_in_graph(node)
 
     def test_protein_fragment_unknown(self):
@@ -912,7 +862,7 @@ class TestProtein(TestTokenParserBase):
 
         node = protein('HGNC', 'YFG', variants=fragment())
         self.assertEqual(statement, node.as_bel())
-        self.assertHasNode(node, **node)
+        self.assertHasNode(node)
         self.help_test_parent_in_graph(node)
 
     def test_protein_fragment_descriptor(self):
@@ -922,7 +872,7 @@ class TestProtein(TestTokenParserBase):
 
         node = protein('HGNC', 'YFG', variants=fragment(description='55kD'))
         self.assertEqual(statement, node.as_bel())
-        self.assertHasNode(node, **node)
+        self.assertHasNode(node)
         self.help_test_parent_in_graph(node)
 
     def test_ensure_no_dup_edges(self):
@@ -983,7 +933,7 @@ class TestRna(TestTokenParserBase):
 
         node = rna('HGNC', 'AKT1', variants=[hgvs('c.1521_1523delCTT'), hgvs(TEST_PROTEIN_VARIANT)])
         self.assertEqual('r(HGNC:AKT1, var(c.1521_1523delCTT), var(p.Phe508del))', node.as_bel())
-        self.assertHasNode(node, **node)
+        self.assertHasNode(node)
         self.help_test_parent_in_graph(node)
 
     def test_rna_fusion_1(self):
@@ -1012,10 +962,10 @@ class TestRna(TestTokenParserBase):
         self.assertEqual(expected_dict, result.asDict())
 
         expected_node = rna_fusion(
-            partner_5p=rna('HGNC', 'TMPRSS2'),
-            partner_3p=rna('HGNC', 'ERG'),
-            range_5p=fusion_range('r', 1, 79),
-            range_3p=fusion_range('r', 312, 5034)
+            partner5p=rna('HGNC', 'TMPRSS2'),
+            partner3p=rna('HGNC', 'ERG'),
+            range5p=fusion_range('r', 1, 79),
+            range3p=fusion_range('r', 312, 5034)
         )
         self.assertEqual(statement, expected_node.as_bel())
         self.assertHasNode(expected_node)
@@ -1041,8 +991,8 @@ class TestRna(TestTokenParserBase):
         self.assertEqual(expected_dict, result.asDict())
 
         expected_node = rna_fusion(
-            partner_5p=rna('HGNC', 'TMPRSS2'),
-            partner_3p=rna('HGNC', 'ERG'),
+            partner5p=rna('HGNC', 'TMPRSS2'),
+            partner3p=rna('HGNC', 'ERG'),
         )
         self.assertEqual(statement, expected_node.as_bel())
         self.assertHasNode(expected_node)
@@ -1073,10 +1023,10 @@ class TestRna(TestTokenParserBase):
         self.assertEqual(expected_dict, result.asDict())
 
         expected_node = rna_fusion(
-            partner_5p=rna('HGNC', 'BCR'),
-            partner_3p=rna('HGNC', 'JAK2'),
-            range_5p=fusion_range('r', '?', 1875),
-            range_3p=fusion_range('r', 2626, '?')
+            partner5p=rna('HGNC', 'BCR'),
+            partner3p=rna('HGNC', 'JAK2'),
+            range5p=fusion_range('r', '?', 1875),
+            range3p=fusion_range('r', 2626, '?')
         )
         self.assertEqual('r(fus(HGNC:BCR, r.?_1875, HGNC:JAK2, r.2626_?))', expected_node.as_bel())
         self.assertHasNode(expected_node)
@@ -1097,8 +1047,8 @@ class TestRna(TestTokenParserBase):
         self.assertEqual(expected_dict, result.asDict())
 
         expected_node = rna_fusion(
-            partner_5p=rna('HGNC', 'CHCHD4'),
-            partner_3p=rna('HGNC', 'AIFM1'),
+            partner5p=rna('HGNC', 'CHCHD4'),
+            partner3p=rna('HGNC', 'AIFM1'),
         )
         self.assertEqual('r(fus(HGNC:CHCHD4, ?, HGNC:AIFM1, ?))', expected_node.as_bel())
         self.assertHasNode(expected_node)
@@ -1145,7 +1095,7 @@ class TestComplex(TestTokenParserBase):
 
         expected_node = named_complex_abundance('SCOMP', 'AP-1 Complex')
         self.assertEqual(statement, expected_node.as_bel())
-        self.assertHasNode(expected_node, **expected_node)
+        self.assertHasNode(expected_node)
 
     def test_complex_list_short(self):
         statement = 'complex(p(HGNC:FOS), p(HGNC:JUN))'
@@ -1174,12 +1124,12 @@ class TestComplex(TestTokenParserBase):
         jun = protein('HGNC', 'JUN')
         node = complex_abundance([fos, jun])
         self.assertEqual(statement, node.as_bel())
-        self.assertHasNode(node, **node)
+        self.assertHasNode(node)
 
-        self.assertHasNode(fos, **fos)
+        self.assertHasNode(fos)
         self.assertHasEdge(node, fos, relation=HAS_COMPONENT)
 
-        self.assertHasNode(jun, **jun)
+        self.assertHasNode(jun)
         self.assertHasEdge(node, fos, relation=HAS_COMPONENT)
 
     def test_complex_list_long(self):
@@ -1233,10 +1183,10 @@ class TestComposite(TestTokenParserBase):
         self.assertEqual(3, self.parser.graph.number_of_nodes())
         self.assertEqual(2, self.parser.graph.number_of_edges())
 
-        self.assertHasNode(il23, **il23)
+        self.assertHasNode(il23)
         self.assertHasEdge(expected_node, il23, relation=HAS_COMPONENT)
 
-        self.assertHasNode(il6, **il6)
+        self.assertHasNode(il6)
         self.assertHasEdge(expected_node, il6, relation=HAS_COMPONENT)
 
 
@@ -1262,7 +1212,7 @@ class TestBiologicalProcess(TestTokenParserBase):
 
         expected_node = bioprocess('GOBP', 'cell cycle arrest')
         self.assertEqual(statement, expected_node.as_bel())
-        self.assertHasNode(expected_node, **expected_node)
+        self.assertHasNode(expected_node)
 
 
 class TestPathology(TestTokenParserBase):
@@ -1284,9 +1234,9 @@ class TestPathology(TestTokenParserBase):
         }
         self.assertEqual(expected_dict, result.asDict())
 
-        expected_node = pathology('MESHD', 'adenocarcinoma')
-        self.assertEqual('path(MESHD:adenocarcinoma)', expected_node.as_bel())
-        self.assertHasNode(expected_node, **expected_node)
+        node = pathology('MESHD', 'adenocarcinoma')
+        self.assertEqual('path(MESHD:adenocarcinoma)', node.as_bel())
+        self.assertHasNode(node)
 
 
 class TestActivity(TestTokenParserBase):
@@ -1439,10 +1389,10 @@ class TestTranslocationPermissive(unittest.TestCase):
         self.parser.transformation.setParseAction(self.parser.handle_term)
 
     def assertHasNode(self, member, **kwargs):
-        assertHasNode(self, member, self.parser.graph, **kwargs)
+        assertHasNode(self, member, self.graph, **kwargs)
 
     def assertHasEdge(self, u, v, **kwargs):
-        assertHasEdge(self, u, v, self.parser.graph, **kwargs)
+        assertHasEdge(self, u, v, self.graph, **kwargs)
 
     def test_unqualified_translocation_single(self):
         """translocation example"""
@@ -1505,6 +1455,8 @@ class TestTranslocationPermissive(unittest.TestCase):
 
         expected_annotations = {
             RELATION: DIRECTLY_INCREASES,
+            CITATION: test_citation_dict,
+            EVIDENCE: test_evidence_text,
             OBJECT: {
                 MODIFIER: TRANSLOCATION,
             }

@@ -7,12 +7,13 @@ import warnings
 from copy import deepcopy
 
 import networkx as nx
-from six import string_types
+import six
 
 from ..canonicalize import edge_to_bel
 from ..constants import *
 from ..dsl import activity
 from ..dsl.nodes import BaseEntity
+from ..tokens import dict_to_entity
 from ..utils import get_version, hash_edge
 
 __all__ = [
@@ -370,12 +371,12 @@ class BELGraph(nx.MultiDiGraph):
 
         :param BaseEntity u:
         :param BaseEntity v:
-        :param attr: The data dictionary represting the attrs
+        :param dict attr: The data dictionary representing the attrs
         :return: The key/hash for this edge
         :rtype: str
         """
-        self.add_node_from_data(u)
-        self.add_node_from_data(v)
+        self.add_entity(u)
+        self.add_entity(v)
         key = hash_edge(u, v, attr)
         self.hash_to_edge[key] = (u, v)  # indexing
         self.add_edge(u, v, key=key, **attr)
@@ -458,27 +459,24 @@ class BELGraph(nx.MultiDiGraph):
     def add_orthology(self, u, v):
         """Adds two orthology relations for the nodes
 
-        :param BaseEntity u: Either a PyBEL node tuple or PyBEL node data dictionary representing the source node
-        :param BaseEntity v: Either a PyBEL node tuple or PyBEL node data dictionary representing the target node
+        :param BaseEntity u: A PyBEL entity representing the source
+        :param BaseEntity v: A PyBEL entity representing the target
         """
         return self._add_two_way_unqualified_edge(u, v, ORTHOLOGOUS)
 
-    def iter_node_data_pairs(self):
-        """Iterates over pairs of nodes and their data dictionaries
+    def add_has_variant(self, u, v):
+        """Adds a HAS_VARIANT relation
 
-        :rtype: iter[tuple[tuple,dict]]
+        :param BaseEntity u: A PyBEL entity representing the source
+        :param BaseEntity v: A PyBEL entity representing the target
         """
-        return self.nodes_iter(data=True)
+        return self.add_unqualified_edge(u, v, HAS_VARIANT)
 
-    def add_node_from_data(self, node):
-        """Converts a PyBEL node data dictionary to a canonical PyBEL node tuple and ensures it is in the graph.
+    def add_entity(self, node):
+        """Adds an entity to the graph
 
-        :param pybel.dsl.nodes.BaseEntity or dict node: A PyBEL node data dictionary
-        :return: A PyBEL node tuple
+        :param BaseEntity node: A BEL entity
         """
-        if node is None:
-            raise ValueError('can not add None')
-
         if not isinstance(node, BaseEntity):
             raise TypeError('should be using BaseEntity. Got class {}: {}'.format(node.__class__.__name__, node))
 
@@ -506,6 +504,27 @@ class BELGraph(nx.MultiDiGraph):
 
             for product in node[PRODUCTS]:
                 self.add_unqualified_edge(node, product, HAS_PRODUCT)
+
+    def add_node_from_dict(self, node_data):
+        """Converts a dict to a BaseEntity and adds it to the graph with :meth:`add_entity`
+
+        :param dict node_data:
+        :rtype: BaseEntity
+        """
+        node = dict_to_entity(node_data)
+        self.add_entity(node)
+        return node
+
+    def add_node_from_data(self, node):
+        """Converts a PyBEL node data dictionary to a canonical PyBEL node tuple and ensures it is in the graph.
+
+        :param pybel.dsl.nodes.BaseEntity or dict node: A PyBEL node data dictionary
+        :return: A PyBEL node tuple
+        """
+        if isinstance(node, BaseEntity):
+            return self.add_entity(node)
+
+        raise NotImplementedError("arbitrary adding not yet implemented")
 
     def has_node_with_data(self, attr_dict):
         """Checks if this graph has a node with the given data dictionary
@@ -545,7 +564,7 @@ class BELGraph(nx.MultiDiGraph):
             EVIDENCE: evidence,
         }
 
-        if isinstance(citation, string_types):
+        if isinstance(citation, six.string_types):
             attr[CITATION] = {
                 CITATION_TYPE: CITATION_TYPE_PUBMED,
                 CITATION_REFERENCE: citation
@@ -765,15 +784,17 @@ class BELGraph(nx.MultiDiGraph):
 
         return left_node_intersection_join(self, other)
 
-    def edge_to_bel(self, u, v, data, sep=None):
+    @staticmethod
+    def edge_to_bel(u, v, data, sep=None):
         """Serializes a pair of nodes and related edge data as a BEL relation
 
-        :param BaseEntity u: A PyBEL node tuple for the soure node
+        :param BaseEntity u: A PyBEL node tuple for the source node
         :param BaseEntity v: A PyBEL node tuple for the target node
         :param dict data: A PyBEL edge data dictionary
         :param str sep: The separator between the source, relation, and target. Defaults to ' '
         :rtype: str
         """
+        warnings.warn('use pybel.canonicalize.edge_to_bel', DeprecationWarning)
         return edge_to_bel(u, v, data=data, sep=sep)
 
     def _equivalent_node_iterator_helper(self, node, visited):

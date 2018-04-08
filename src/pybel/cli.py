@@ -30,13 +30,13 @@ from .utils import PYBEL_MYSQL_FMT_NOPASS, PYBEL_MYSQL_FMT_PASS
 
 log = logging.getLogger(__name__)
 
+
 def _page(it):
     click.echo_via_pager('\n'.join(map(str, it)))
 
 
-@click.group(
-    help="PyBEL Command Line Utilities on {} using default connection {}".format(sys.executable,
-                                                                                 get_cache_connection()))
+@click.group(help="PyBEL Command Line Utilities on {} using default connection {}".format(sys.executable,
+                                                                                          get_cache_connection()))
 @click.version_option()
 def main():
     """PyBEL Command Line """
@@ -328,6 +328,7 @@ def ls(manager, url, namespace_id):
     else:
         for n in manager.session.query(Namespace).order_by(Namespace.uploaded.desc()):
             click.echo('\t'.join(map(str, (n.id, n.keyword, n.version, n.url))))
+
 
 @annotations.command()
 @click.option('--url', help='Specific resource URL to list')

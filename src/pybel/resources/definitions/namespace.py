@@ -2,8 +2,9 @@
 
 from __future__ import print_function
 
-import time
 from collections import Iterable, Mapping
+
+import time
 
 from pybel.constants import NAMESPACE_DOMAIN_TYPES, belns_encodings
 from pybel.resources.utils import get_iso_8601_date

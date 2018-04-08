@@ -57,7 +57,7 @@ class TestRelations(TestTokenParserBase):
         node = gene('HGNC', 'AKT1')
 
         self.assertNumberNodes(1)
-        self.assertHasNode(node, **node)
+        self.assertHasNode(node)
 
     def test_singleton(self):
         """Test singleton composite in subject."""
@@ -131,7 +131,12 @@ class TestRelations(TestTokenParserBase):
         neuron_apoptotic_process = bioprocess('GOBP', 'neuron apoptotic process')
         self.assertHasNode(neuron_apoptotic_process)
 
-        self.assertHasEdge(casp8_and_fadd_and_amyloid_beta, neuron_apoptotic_process, relation=INCREASES)
+        edge_data = {
+            RELATION: INCREASES,
+            CITATION: test_citation_dict,
+            EVIDENCE: test_evidence_text
+        }
+        self.assertHasEdge(casp8_and_fadd_and_amyloid_beta, neuron_apoptotic_process, **edge_data)
 
     def test_directlyIncreases_withTlocObject(self):
         """Test translocation in object. See BEL 2.0 specification
@@ -171,6 +176,8 @@ class TestRelations(TestTokenParserBase):
 
         expected_annotations = {
             RELATION: DIRECTLY_INCREASES,
+            CITATION: test_citation_dict,
+            EVIDENCE: test_evidence_text,
             OBJECT: {
                 MODIFIER: TRANSLOCATION,
                 EFFECT: {
@@ -233,6 +240,8 @@ class TestRelations(TestTokenParserBase):
 
         expected_edge_attributes = {
             RELATION: DECREASES,
+            CITATION: test_citation_dict,
+            EVIDENCE: test_evidence_text,
             SUBJECT: {
                 MODIFIER: ACTIVITY,
                 EFFECT: {
@@ -279,10 +288,12 @@ class TestRelations(TestTokenParserBase):
         self.assertHasNode(obj)
 
         expected_attrs = {
+            RELATION: DIRECTLY_DECREASES,
+            CITATION: test_citation_dict,
+            EVIDENCE: test_evidence_text,
             SUBJECT: {
                 LOCATION: {NAMESPACE: 'GOCC', NAME: 'intracellular'}
             },
-            RELATION: 'directlyDecreases',
         }
         self.assertHasEdge(sub, obj, **expected_attrs)
 
@@ -376,7 +387,19 @@ class TestRelations(TestTokenParserBase):
         obj = bioprocess('GOBP', 'cholesterol biosynthetic process')
         self.assertHasNode(obj)
 
-        self.assertHasEdge(sub, obj, relation=RATE_LIMITING_STEP_OF)
+        edge_data = {
+            RELATION: RATE_LIMITING_STEP_OF,
+            CITATION: test_citation_dict,
+            EVIDENCE: test_evidence_text,
+            SUBJECT: {
+                MODIFIER: ACTIVITY,
+                EFFECT: {
+                    NAME: 'cat',
+                    NAMESPACE: BEL_DEFAULT_NAMESPACE
+                },
+            },
+        }
+        self.assertHasEdge(sub, obj, **edge_data)
 
     def test_cnc_withSubjectVariant(self):
         """
@@ -398,7 +421,7 @@ class TestRelations(TestTokenParserBase):
                     }
                 ]
             },
-            RELATION: 'causesNoChange',
+            RELATION: CAUSES_NO_CHANGE,
             OBJECT: {
                 FUNCTION: PATHOLOGY,
                 NAMESPACE: 'MESHD',
@@ -413,7 +436,11 @@ class TestRelations(TestTokenParserBase):
         obj = pathology('MESHD', 'Alzheimer Disease')
         self.assertHasNode(obj)
 
-        self.assertHasEdge(sub, obj, relation=expected_dict[RELATION])
+        self.assertHasEdge(sub, obj, **{
+            RELATION: CAUSES_NO_CHANGE,
+            CITATION: test_citation_dict,
+            EVIDENCE: test_evidence_text,
+        })
 
     def test_regulates_multipleAnnotations(self):
         """
@@ -462,13 +489,32 @@ class TestRelations(TestTokenParserBase):
 
         sub = complex_abundance([f3, f7])
 
-        self.assertHasEdge(sub, f3)
-        self.assertHasEdge(sub, f7)
+        self.assertHasEdge(sub, f3, relation=HAS_COMPONENT)
+        self.assertHasEdge(sub, f7, relation=HAS_COMPONENT)
 
         f9 = protein('HGNC', 'F9')
         self.assertHasNode(f9)
 
-        self.assertHasEdge(sub, f9, relation=expected_dict[RELATION])
+        edge_data = {
+            RELATION: REGULATES,
+            CITATION: test_citation_dict,
+            EVIDENCE: test_evidence_text,
+            SUBJECT: {
+                MODIFIER: ACTIVITY,
+                EFFECT: {
+                    NAME: 'pep',
+                    NAMESPACE: BEL_DEFAULT_NAMESPACE
+                },
+            },
+            OBJECT: {
+                MODIFIER: ACTIVITY,
+                EFFECT: {
+                    NAME: 'pep',
+                    NAMESPACE: BEL_DEFAULT_NAMESPACE
+                },
+            }
+        }
+        self.assertHasEdge(sub, f9, **edge_data)
 
     def test_nested_failure(self):
         """
@@ -489,15 +535,24 @@ class TestRelations(TestTokenParserBase):
         hydrogen_peroxide = abundance('CHEBI', "hydrogen peroxide")
         apoptotic_process = bioprocess('GO', "apoptotic process")
 
-        self.assertHasEdge(cat, hydrogen_peroxide, relation=DECREASES)
-        self.assertHasEdge(hydrogen_peroxide, apoptotic_process, relation=INCREASES)
+        self.assertHasEdge(cat, hydrogen_peroxide, **{
+            RELATION: DECREASES,
+            CITATION: test_citation_dict,
+            EVIDENCE: test_evidence_text,
+        })
+        self.assertHasEdge(hydrogen_peroxide, apoptotic_process, **{
+            RELATION: INCREASES,
+            CITATION: test_citation_dict,
+            EVIDENCE: test_evidence_text,
+        })
 
         self.parser.lenient = False
 
     def test_negativeCorrelation_withObjectVariant(self):
-        """
+        """Tests the phosphoralation tag
+
         3.2.1 http://openbel.org/language/web/version_2.0/bel_specification_version_2.0.html#XnegCor
-        Test phosphoralation tag"""
+        """
         statement = 'kin(p(SFAM:"GSK3 Family")) neg p(HGNC:MAPT,pmod(P))'
         result = self.parser.relation.parseString(statement)
 
@@ -530,8 +585,33 @@ class TestRelations(TestTokenParserBase):
         obj = protein('HGNC', 'MAPT', variants=pmod('Ph'))
         self.assertHasNode(obj)
 
-        self.assertHasEdge(sub, obj, relation=expected_dict[RELATION])
-        self.assertHasEdge(obj, sub, relation=expected_dict[RELATION])
+        edge_data = {
+            RELATION: NEGATIVE_CORRELATION,
+            CITATION: test_citation_dict,
+            EVIDENCE: test_evidence_text,
+            SUBJECT: {
+                MODIFIER: ACTIVITY,
+                EFFECT: {
+                    NAME: 'kin',
+                    NAMESPACE: BEL_DEFAULT_NAMESPACE
+                },
+            },
+        }
+        self.assertHasEdge(sub, obj, **edge_data)
+
+        edge_data_reverse = {
+            RELATION: NEGATIVE_CORRELATION,
+            CITATION: test_citation_dict,
+            EVIDENCE: test_evidence_text,
+            OBJECT: {
+                MODIFIER: ACTIVITY,
+                EFFECT: {
+                    NAME: 'kin',
+                    NAMESPACE: BEL_DEFAULT_NAMESPACE
+                },
+            },
+        }
+        self.assertHasEdge(obj, sub, **edge_data_reverse)
 
     def test_positiveCorrelation_withSelfReferential(self):
         """
@@ -547,7 +627,7 @@ class TestRelations(TestTokenParserBase):
                 NAME: 'GSK3B',
                 VARIANTS: [pmod('Ph', position=9, code='Ser')]
             },
-            RELATION: 'positiveCorrelation',
+            RELATION: POSITIVE_CORRELATION,
             OBJECT: {
                 MODIFIER: ACTIVITY,
                 TARGET: {
@@ -569,8 +649,33 @@ class TestRelations(TestTokenParserBase):
         object_node = protein('HGNC', 'GSK3B')
         self.assertHasNode(object_node)
 
-        self.assertHasEdge(subject_node, object_node, relation=expected_dict[RELATION])
-        self.assertHasEdge(object_node, subject_node, relation=expected_dict[RELATION])
+        edge_data = {
+            RELATION: POSITIVE_CORRELATION,
+            CITATION: test_citation_dict,
+            EVIDENCE: test_evidence_text,
+            OBJECT: {
+                MODIFIER: ACTIVITY,
+                EFFECT: {
+                    NAME: 'kin',
+                    NAMESPACE: BEL_DEFAULT_NAMESPACE
+                }
+            },
+        }
+        self.assertHasEdge(subject_node, object_node, **edge_data)
+
+        edge_data_reverse = {
+            RELATION: POSITIVE_CORRELATION,
+            CITATION: test_citation_dict,
+            EVIDENCE: test_evidence_text,
+            SUBJECT: {
+                MODIFIER: ACTIVITY,
+                EFFECT: {
+                    NAME: 'kin',
+                    NAMESPACE: BEL_DEFAULT_NAMESPACE
+                }
+            },
+        }
+        self.assertHasEdge(object_node, subject_node, **edge_data_reverse)
 
     def test_orthologous(self):
         """
@@ -742,6 +847,7 @@ class TestRelations(TestTokenParserBase):
         self.assertEqual(IS_A, self.graph[psoriasis][skin_diseases][key][RELATION])
 
     def test_label_1(self):
+        """Tests that a gene with variants can be relabeled. Note that the variant order has to be canonicalized"""
         statement = 'g(HGNC:APOE, var(c.526C>T), var(c.388T>C)) labeled "APOE E2"'
         result = self.parser.relation.parseString(statement)
 
@@ -767,7 +873,9 @@ class TestRelations(TestTokenParserBase):
         self.assertNumberNodes(2)
         self.assertNumberEdges(1)
 
+        # Variants will get canonicalized
         node = gene('HGNC', 'APOE', variants=[gene_substitution('C', 526, 'T'), gene_substitution('T', 388, 'C')])
+
         self.assertEqual('g(HGNC:APOE, var(c.388T>C), var(c.526C>T))', node.as_bel())
         self.assertHasNode(node)
         self.help_test_parent_in_graph(node)
@@ -893,9 +1001,14 @@ class TestRelations(TestTokenParserBase):
         self.assertHasEdge(sub, sub_product_3, relation=HAS_PRODUCT)
 
         cholesterol_biosynthetic_process = bioprocess('GOBP', 'cholesterol biosynthetic process')
-        self.assertHasNode(cholesterol_biosynthetic_process, **cholesterol_biosynthetic_process)
+        self.assertHasNode(cholesterol_biosynthetic_process)
 
-        self.assertHasEdge(sub, cholesterol_biosynthetic_process, relation=SUBPROCESS_OF)
+        edge_data = {
+            RELATION: SUBPROCESS_OF,
+            CITATION: test_citation_dict,
+            EVIDENCE: test_evidence_text,
+        }
+        self.assertHasEdge(sub, cholesterol_biosynthetic_process, **edge_data)
 
     def test_extra_1(self):
         statement = 'abundance(CHEBI:"nitric oxide") increases cellSurfaceExpression(complexAbundance(proteinAbundance(HGNC:ITGAV),proteinAbundance(HGNC:ITGB3)))'

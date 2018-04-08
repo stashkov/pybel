@@ -5,14 +5,13 @@
 from .constants import *
 from .dsl import cell_surface_expression, secretion
 from .dsl.nodes import (
-    BaseAbundance, Variant, abundance, bioprocess, complex_abundance, composite_abundance, fragment, fusion_range, gene,
+    BaseAbundance, abundance, bioprocess, complex_abundance, composite_abundance, fragment, fusion_range, gene,
     gene_fusion, gmod, hgvs, mirna, missing_fusion_range, named_complex_abundance, pathology, pmod, protein,
     protein_fusion, reaction, rna, rna_fusion,
 )
 
 __all__ = [
     'dict_to_entity',
-    'sort_abundances',
 ]
 
 
@@ -30,12 +29,11 @@ def fusion_range_po_to_dict(tokens):
     if FUSION_MISSING in tokens:
         return missing_fusion_range()
 
-    else:
-        return fusion_range(
-            reference=tokens[FUSION_REFERENCE],
-            start=tokens[FUSION_START],
-            stop=tokens[FUSION_STOP]
-        )
+    return fusion_range(
+        reference=tokens[FUSION_REFERENCE],
+        start=tokens[FUSION_START],
+        stop=tokens[FUSION_STOP]
+    )
 
 
 _fusion_func_to_dsl = {
@@ -67,24 +65,24 @@ def fusion_po_to_dict(tokens):
     dsl_fusion_func = _fusion_func_to_dsl[tokens_func]
     dsl_func = _func_to_dsl[tokens_func]
 
-    partner_5p = dsl_func(
+    partner5p = dsl_func(
         namespace=tokens[FUSION][PARTNER_5P][NAMESPACE],
         name=tokens[FUSION][PARTNER_5P][NAME]
     )
 
-    partner_3p = dsl_func(
+    partner3p = dsl_func(
         namespace=tokens[FUSION][PARTNER_3P][NAMESPACE],
         name=tokens[FUSION][PARTNER_3P][NAME]
     )
 
-    range_5p = fusion_range_po_to_dict(tokens[FUSION][RANGE_5P])
-    range_3p = fusion_range_po_to_dict(tokens[FUSION][RANGE_3P])
+    range5p = fusion_range_po_to_dict(tokens[FUSION][RANGE_5P])
+    range3p = fusion_range_po_to_dict(tokens[FUSION][RANGE_3P])
 
     return dsl_fusion_func(
-        partner_5p=partner_5p,
-        range_5p=range_5p,
-        partner_3p=partner_3p,
-        range_3p=range_3p
+        partner5p=partner5p,
+        range5p=range5p,
+        partner3p=partner3p,
+        range3p=range3p
     )
 
 
@@ -119,31 +117,17 @@ def _variant_dict_to_dsl(d):
     raise ValueError
 
 
-def _as_tuple(v):
-    return v.as_tuple()
-
-
-def sort_variants(variants):
-    """
-    :param list[Variant] variants: A list of variants
-    :rtype: list[Variant]
-    """
-    return sorted([variant for variant in variants if variant], key=_as_tuple)
-
-
 def variant_po_to_dict_helper(tokens):
     """Converts a PyParsing data dictionary to a PyBEL variant data dictionary
 
     :type tokens: ParseResult
     :rtype: list[pybel.dsl.nodes.Variant]
     """
-    variants = [
+    return [
         _variant_dict_to_dsl(safe_get_dict(variant))
         for variant in tokens[VARIANTS]
         # TODO check variant[KIND] ?
     ]
-
-    return sort_variants(variants)
 
 
 def variant_po_to_dict(tokens):
@@ -152,18 +136,12 @@ def variant_po_to_dict(tokens):
     :type tokens: ParseResult
     :rtype: pybel.dsl.nodes.BaseAbundance
     """
-    attr_data = simple_dict_to_entity(tokens)
-    attr_data[VARIANTS] = variant_po_to_dict_helper(tokens)
-    return attr_data
+    if tokens[FUNCTION] not in {PROTEIN, GENE, RNA, MIRNA}:
+        raise TypeError
 
-
-def sort_abundances(tokens):
-    """Sorts a list of PyBEL data dictionaries to their canonical ordering
-
-    :param iter[BaseAbundance] tokens:
-    :rtype: list[BaseAbundance]
-    """
-    return sorted(tokens, key=_as_tuple)
+    parent = simple_dict_to_entity(tokens)
+    variants = variant_po_to_dict_helper(tokens)
+    return parent.with_variants(variants)
 
 
 def reaction_dict_to_entity(tokens):
@@ -184,7 +162,8 @@ def simple_dict_to_entity(tokens):
     """
     return _func_to_dsl[tokens[FUNCTION]](
         namespace=tokens[NAMESPACE],
-        name=tokens[NAME]
+        name=tokens.get(NAME),
+        identifier=tokens.get(IDENTIFIER),
     )
 
 
@@ -195,7 +174,7 @@ def fragment_po_to_dsl(tokens):
     :rtype: fragment
     """
     if FRAGMENT_MISSING in tokens:
-        return fragment()
+        return fragment(description=tokens.get(FRAGMENT_DESCRIPTION))
 
     return fragment(
         start=tokens[FRAGMENT_START],
@@ -215,14 +194,14 @@ def list_po_to_dict(tokens):
     :param tokens: PyParsing ParseObject
     :rtype: pybel.dsl.nodes.ListAbundance
     """
-    list_entries = [
+    members = [
         dict_to_entity(token)
         for token in tokens[MEMBERS]
     ]
 
-    return _list_function_to_dsl[tokens[FUNCTION]](
-        members=sort_abundances(list_entries)
-    )
+    dsl_func = _list_function_to_dsl[tokens[FUNCTION]]
+
+    return dsl_func(members=members)
 
 
 def dict_to_entity(tokens):

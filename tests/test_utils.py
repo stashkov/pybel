@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 
-import time
 import unittest
 
 import networkx as nx
+import time
 from six import string_types
 
 import pybel.utils
-from pybel.canonicalize import node_to_bel, postpend_location
+from pybel.canonicalize import postpend_location
 from pybel.constants import *
 from pybel.parser.exc import PlaceholderAminoAcidWarning
 from pybel.parser.modifiers.protein_modification import amino_acid
@@ -15,7 +15,7 @@ from pybel.parser.utils import nest
 from pybel.resources.definitions import get_bel_resource
 from pybel.resources.exc import EmptyResourceError
 from pybel.resources.utils import get_iso_8601_date
-from pybel.utils import flatten_citation, list2tuple, tokenize_version
+from pybel.utils import flatten_citation, tokenize_version
 from tests.constants import test_an_1, test_ns_empty
 from tests.mocks import mock_bel_resources
 
@@ -52,13 +52,6 @@ class TestRandom(unittest.TestCase):
     def test_bad_aminoAcid(self):
         with self.assertRaises(PlaceholderAminoAcidWarning):
             amino_acid.parseString('X')
-
-    def test_list2tuple(self):
-        l = [None, 1, 's', [1, 2, [4], [[]]]]
-        e = (None, 1, 's', (1, 2, (4,), ((),)))
-        t = list2tuple(l)
-
-        self.assertEqual(t, e)
 
     def test_get_date(self):
         d = get_iso_8601_date()

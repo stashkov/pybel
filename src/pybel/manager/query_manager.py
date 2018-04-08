@@ -3,14 +3,14 @@
 import datetime
 from collections import Iterable
 
-from six import string_types
+import six
 from sqlalchemy import and_, func, or_
 
 from .lookup_manager import LookupManager
 from .models import Annotation, AnnotationEntry, Author, Citation, Edge, Evidence, Namespace, NamespaceEntry, Node
 from ..constants import *
 from ..struct import BELGraph
-from ..utils import hash_node, parse_datetime
+from ..utils import parse_datetime
 
 __all__ = [
     'QueryManager'
@@ -54,15 +54,6 @@ class QueryManager(LookupManager):
             return
 
         return node.to_tuple()
-
-    def get_node_by_tuple(self, node):
-        """Looks up a node by the PyBEL node tuple
-
-        :param tuple node: A PyBEL node tuple
-        :rtype: Optional[Node]
-        """
-        node_hash = hash_node(node)
-        return self.get_node_by_hash(node_hash)
 
     def query_nodes(self, bel=None, type=None, namespace=None, name=None):
         """Builds and runs a query over all nodes in the PyBEL cache.
@@ -176,7 +167,7 @@ class QueryManager(LookupManager):
             query = self._add_edge_function_filter(query, Edge.target_id, target_function)
 
         if source:
-            if isinstance(source, string_types):
+            if isinstance(source, six.string_types):
                 source = self.query_nodes(bel=source)
                 if len(source) == 0:
                     return []
@@ -188,7 +179,7 @@ class QueryManager(LookupManager):
                 raise TypeError('Invalid type of {}: {}'.format(source, source.__class__.__name__))
 
         if target:
-            if isinstance(target, string_types):
+            if isinstance(target, six.string_types):
                 targets = self.query_nodes(bel=target)
                 target = targets[0]  # FIXME what if this matches multiple?
                 query = query.filter(Edge.target == target)
@@ -215,7 +206,7 @@ class QueryManager(LookupManager):
 
         if author is not None:
             query = query.join(Author, Citation.authors)
-            if isinstance(author, string_types):
+            if isinstance(author, six.string_types):
                 query = query.filter(Author.name.like(author))
             elif isinstance(author, Iterable):
                 query = query.filter(Author.name.in_(set(author)))
@@ -235,7 +226,7 @@ class QueryManager(LookupManager):
         if date:
             if isinstance(date, datetime.date):
                 query = query.filter(Citation.date == date)
-            elif isinstance(date, string_types):
+            elif isinstance(date, six.string_types):
                 query = query.filter(Citation.date == parse_datetime(date))
 
         if evidence_text:

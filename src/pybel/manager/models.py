@@ -18,10 +18,7 @@ from ..dsl import (
     hgvs, mirna, missing_fusion_range, named_complex_abundance, pathology, pmod, protein, protein_fusion, reaction, rna,
     rna_fusion,
 )
-
-from ..dsl.nodes import Variant
 from ..io.gpickle import from_bytes, to_bytes
-from ..tokens import sort_abundances, sort_variants
 
 __all__ = [
     'Base',
@@ -551,17 +548,17 @@ class Node(Base):
                 for edge in self.out_edges.filter(Edge.relation == HAS_PRODUCT)
             ]
             result = reaction(
-                reactants=sort_abundances(reactants),
-                products=sort_abundances(products)
+                reactants=reactants,
+                products=products,
             )
             self._update_to_json_rv(result, include_id=include_id, include_hash=include_hash)
             return result
 
         if self.type == COMPOSITE:
-            result = composite_abundance(members=sort_abundances(
+            result = composite_abundance(members=[
                 edge.target.to_json()
                 for edge in self.out_edges.filter(Edge.relation == HAS_COMPONENT)
-            ))
+            ])
             self._update_to_json_rv(result, include_id=include_id, include_hash=include_hash)
             return result
 
@@ -587,10 +584,10 @@ class Node(Base):
             return result
 
         if self.is_variant:
-            variants = sort_variants(
+            variants = [
                 modification.to_variant()
                 for modification in self.modifications
-            )
+            ]
 
             if self.type == PROTEIN:
                 result = self.namespace_entry.as_protein(variants=variants)
@@ -654,7 +651,7 @@ class Modification(Base):
 
     sha512 = Column(String(255), index=True)
 
-    def _get_3p_range(self):
+    def _get_range3p(self):
         """
         :rtype: pybel.dsl.nodes.FusionRangeBase
         """
@@ -667,7 +664,7 @@ class Modification(Base):
             stop=int_or_str(self.p3_stop),
         )
 
-    def _get_5p_range(self):
+    def _get_range5p(self):
         """
         :rtype: pybel.dsl.nodes.FusionRangeBase
         """
@@ -685,29 +682,29 @@ class Modification(Base):
         :param str fn: Either GENE, RNA, or PROTEIN
         :rtype: FusionBase
         """
-        range_5p = self._get_5p_range()
-        range_3p = self._get_3p_range()
+        range5p = self._get_range5p()
+        range3p = self._get_range3p()
 
         if fn == PROTEIN:
             return protein_fusion(
-                partner_5p=self.p5_partner.as_protein(),
-                partner_3p=self.p3_partner.as_protein(),
-                range_5p=range_5p,
-                range_3p=range_3p,
+                partner5p=self.p5_partner.as_protein(),
+                partner3p=self.p3_partner.as_protein(),
+                range5p=range5p,
+                range3p=range3p,
             )
         elif fn == RNA:
             return rna_fusion(
-                partner_5p=self.p5_partner.as_rna(),
-                partner_3p=self.p3_partner.as_rna(),
-                range_5p=range_5p,
-                range_3p=range_3p,
+                partner5p=self.p5_partner.as_rna(),
+                partner3p=self.p3_partner.as_rna(),
+                range5p=range5p,
+                range3p=range3p,
             )
         elif fn == GENE:
             return gene_fusion(
-                partner_5p=self.p5_partner.as_gene(),
-                partner_3p=self.p3_partner.as_gene(),
-                range_5p=range_5p,
-                range_3p=range_3p,
+                partner5p=self.p5_partner.as_gene(),
+                partner3p=self.p3_partner.as_gene(),
+                range5p=range5p,
+                range3p=range3p,
             )
         else:
             raise ValueError
@@ -1013,8 +1010,8 @@ class Edge(Base):
         u = self.source.to_json()
         v = self.target.to_json()
 
-        graph.add_node_from_data(u)
-        graph.add_node_from_data(v)
+        graph.add_entity(u)
+        graph.add_entity(v)
 
         graph.add_edge(u, v, attr_dict=self.get_data_json())
 

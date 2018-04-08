@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from .exc import PyBELDSLException
-from ..constants import IDENTIFIER, NAME, NAMESPACE, BEL_DEFAULT_NAMESPACE
+from ..constants import BEL_DEFAULT_NAMESPACE, IDENTIFIER, NAME, NAMESPACE
 from ..utils import ensure_quotes
 
 

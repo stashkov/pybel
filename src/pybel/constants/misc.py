@@ -6,7 +6,6 @@ from os import environ, makedirs, mkdir, path
 
 from .bel_graph_keywords import *
 from .bel_keywords import *
-from .functions import *
 
 log = getLogger(__name__)
 
@@ -68,14 +67,14 @@ def get_cache_connection(connection=None):
     :rtype: str
     """
     if connection is not None:
-        log.info('getting user-defined connection: %s', connection)
+        log.debug('getting user-defined connection: %s', connection)
         return connection
 
     if PYBEL_CONNECTION in environ:
-        log.info('getting environment-defined connection: %s', environ[PYBEL_CONNECTION])
+        log.debug('getting environment-defined connection: %s', environ[PYBEL_CONNECTION])
         return environ[PYBEL_CONNECTION]
 
-    log.info('getting default connection %s', config[PYBEL_CONNECTION])
+    log.debug('getting default connection %s', config[PYBEL_CONNECTION])
     return config[PYBEL_CONNECTION]
 
 
@@ -84,8 +83,6 @@ PYBEL_AUTOEVIDENCE = 'Automatically added by PyBEL'
 
 #: The default namespace given to entities in the BEL language
 BEL_DEFAULT_NAMESPACE = 'bel'
-
-
 
 #: Provides a mapping from BEL language keywords to internal PyBEL strings
 DOCUMENT_KEYS = {
@@ -102,8 +99,6 @@ DOCUMENT_KEYS = {
 
 #: Provides a mapping from internal PyBEL strings to BEL language keywords. Is the inverse of :data:`DOCUMENT_KEYS`
 INVERSE_DOCUMENT_KEYS = {v: k for k, v in DOCUMENT_KEYS.items()}
-
-
 
 #: The default location of BEL Commons
 DEFAULT_SERVICE_URL = 'https://bel-commons.scai.fraunhofer.de'

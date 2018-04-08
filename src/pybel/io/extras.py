@@ -9,6 +9,7 @@ import logging
 
 import networkx as nx
 
+from ..canonicalize import edge_to_bel
 from ..constants import FUNCTION, NAME, NAMESPACE
 from ..struct import BELGraph
 from ..utils import flatten_dict
@@ -56,9 +57,9 @@ def to_csv(graph, file=None, sep='\t'):
     :param file file: A writable file or file-like. Defaults to stdout.
     :param str sep: The separator. Defaults to tab.
     """
-    for u, v, data in graph.edges_iter(data=True):
+    for u, v, data in graph.edges(data=True):
         print(
-            graph.edge_to_bel(u, v, data=data, sep=sep),
+            edge_to_bel(u, v, data=data, sep=sep),
             json.dumps(data),
             sep=sep,
             file=file
@@ -79,9 +80,9 @@ def to_sif(graph, file=None, sep='\t'):
     :param file file: A writable file or file-like. Defaults to stdout.
     :param str sep: The separator. Defaults to tab.
     """
-    for u, v, data in graph.edges_iter(data=True):
+    for u, v, data in graph.edges(data=True):
         print(
-            graph.edge_to_bel(u, v, data=data, sep=sep),
+            edge_to_bel(u, v, data=data, sep=sep),
             file=file
         )
 

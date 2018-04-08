@@ -2,6 +2,7 @@
 
 """This module tests the DSL"""
 
+import itertools as itt
 import unittest
 
 from pybel.canonicalize import fusion_range_to_bel, variant_to_bel
@@ -83,6 +84,12 @@ class TestDSL(unittest.TestCase):
         app = ab42.get_parent()
         self.assertEqual('p(HGNC:APP)', app.as_bel())
 
+
+class TestSort(unittest.TestCase):
+    def test_sort_variants(self):
+        a, b, c = hgvs('c.1521_1523delCTT'), hgvs('c.308G>A'), hgvs('p.Phe508del')
+        for l in itt.permutations([a, b, c]):
+            self.assertEqual([a, b, c], sorted(l))
 
 class TestCanonicalize(unittest.TestCase):
     def test_variant_to_bel_key_error(self):
@@ -182,17 +189,17 @@ class TestCanonicalize(unittest.TestCase):
 
     def test_rna_fusion_specified(self):
         node = rna_fusion(
-            partner_5p=rna(namespace='HGNC', name='TMPRSS2'),
-            range_5p=fusion_range('r', 1, 79),
-            partner_3p=rna(namespace='HGNC', name='ERG'),
-            range_3p=fusion_range('r', 312, 5034)
+            partner5p=rna(namespace='HGNC', name='TMPRSS2'),
+            range5p=fusion_range('r', 1, 79),
+            partner3p=rna(namespace='HGNC', name='ERG'),
+            range3p=fusion_range('r', 312, 5034)
         )
         self.assertEqual('r(fus(HGNC:TMPRSS2, r.1_79, HGNC:ERG, r.312_5034))', str(node))
 
     def test_rna_fusion_unspecified(self):
         node = rna_fusion(
-            partner_5p=rna(namespace='HGNC', name='TMPRSS2'),
-            partner_3p=rna(namespace='HGNC', name='ERG'),
+            partner5p=rna(namespace='HGNC', name='TMPRSS2'),
+            partner3p=rna(namespace='HGNC', name='ERG'),
         )
         self.assertEqual('r(fus(HGNC:TMPRSS2, ?, HGNC:ERG, ?))', str(node))
 
@@ -201,10 +208,10 @@ class TestCanonicalize(unittest.TestCase):
 
     def test_gene_fusion_specified(self):
         node = gene_fusion(
-            partner_5p=gene(namespace='HGNC', name='TMPRSS2'),
-            range_5p=fusion_range('c', 1, 79),
-            partner_3p=gene(namespace='HGNC', name='ERG'),
-            range_3p=fusion_range('c', 312, 5034)
+            partner5p=gene(namespace='HGNC', name='TMPRSS2'),
+            range5p=fusion_range('c', 1, 79),
+            partner3p=gene(namespace='HGNC', name='ERG'),
+            range3p=fusion_range('c', 312, 5034)
         )
 
         self.assertEqual('g(fus(HGNC:TMPRSS2, c.1_79, HGNC:ERG, c.312_5034))', str(node))

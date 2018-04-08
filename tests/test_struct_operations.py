@@ -21,16 +21,16 @@ class TestLeftFullJoin(unittest.TestCase):
     def setUp(self):
         g = BELGraph()
 
-        g.add_node_from_data(p1)
-        g.add_node_from_data(p2)
+        g.add_entity(p1)
+        g.add_entity(p2)
 
         g.add_qualified_edge(p1, p2, relation=INCREASES, citation='PMID1', evidence='Evidence 1')
 
         h = BELGraph()
 
-        h.add_node_from_data(p1)
-        h.add_node_from_data(p2)
-        h.add_node_from_data(p3)
+        h.add_entity(p1)
+        h.add_entity(p2)
+        h.add_entity(p3)
 
         # this shouldn't get copied over since it's already in the graph
         h.node[p1]['EXTRANEOUS'] = 'MOST DEFINITELY'
@@ -143,7 +143,7 @@ class TestLeftFullOuterJoin(unittest.TestCase):
         h.add_qualified_edge(self.n1, self.n4, relation=n(), citation=n(), evidence=n())
 
         h.add_qualified_edge(self.n5, self.n6, relation=n(), citation=n(), evidence=n())
-        h.add_node_from_data(self.n7)
+        h.add_entity(self.n7)
 
         self.g = g
         self.h = h

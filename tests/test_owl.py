@@ -7,7 +7,7 @@ from pathlib import Path
 
 from pybel import from_path
 from pybel.constants import *
-from pybel.dsl import protein, abundance
+from pybel.dsl import abundance, protein
 from pybel.manager.utils import parse_owl
 from pybel.parser.exc import RedefinedAnnotationError, RedefinedNamespaceError
 from pybel.parser.parse_metadata import MetadataParser
@@ -229,19 +229,19 @@ class TestParse(TestGraphMixin):
         self.assertEqual(EXPECTED_PIZZA_EDGES, set(owl.edges()))
 
     def test_parse_wine_file(self):
-        owl = parse_owl(Path(test_owl_wine).as_uri())
+        owl_graph = parse_owl(Path(test_owl_wine).as_uri())
 
         for node in sorted(wine_classes):
-            self.assertHasNode(owl, node)
+            self.assertIn(node, owl_graph)
 
         for node in sorted(wine_individuals):
-            self.assertHasNode(owl, node)
+            self.assertIn(node, owl_graph)
 
         for u, v in sorted(wine_subclasses):
-            self.assertHasEdge(owl, u, v)
+            self.assertIn(v, owl_graph[u])
 
         for u, v in sorted(wine_membership):
-            self.assertHasEdge(owl, u, v)
+            self.assertIn(v, owl_graph[u])
 
     def test_ado_local(self):
         ado_path = Path(test_owl_ado).as_uri()
@@ -398,18 +398,6 @@ class TestExtensionIo(TestGraphMixin, FleetingTemporaryCacheMixin):
         self.assertIn(b, graph)
         self.assertIn(b, graph[a])
 
-        annots = {
-            CITATION: {
-                CITATION_NAME: 'That one article from last week',
-                CITATION_REFERENCE: '123455',
-                CITATION_TYPE: 'PubMed'
-            },
-            EVIDENCE: 'Made up support, not even qualifying as evidence',
-            ANNOTATIONS: {
-                'Wine': {'Cotturi': True}
-            }
-        }
-
         c = abundance(namespace='PIZZA', name='MeatTopping')
         d = abundance(namespace='WINE', name='Wine')
         e = abundance(namespace='PIZZA', name='TomatoTopping')
@@ -426,9 +414,36 @@ class TestExtensionIo(TestGraphMixin, FleetingTemporaryCacheMixin):
         self.assertIn(d, graph[e])
         self.assertIn(g, graph[f])
 
-        self.assertHasEdge(graph, c, d, **annots)
-        self.assertHasEdge(graph, e, d, **annots)
-        self.assertHasEdge(graph, f, g, **annots)
+        edge_data_1 = {
+            CITATION: {
+                CITATION_NAME: 'That one article from last week',
+                CITATION_REFERENCE: '123455',
+                CITATION_TYPE: 'PubMed'
+            },
+            EVIDENCE: 'Made up support, not even qualifying as evidence',
+            ANNOTATIONS: {
+                'Wine': {'Cotturi': True}
+            },
+            RELATION: INCREASES,
+        }
+
+        self.assertHasEdge(graph, c, d, **edge_data_1)
+        self.assertHasEdge(graph, e, d, **edge_data_1)
+
+        edge_data_2 = {
+            CITATION: {
+                CITATION_NAME: 'That one article from last week',
+                CITATION_REFERENCE: '123455',
+                CITATION_TYPE: 'PubMed'
+            },
+            EVIDENCE: 'Made up support, not even qualifying as evidence',
+            ANNOTATIONS: {
+                'Wine': {'Cotturi': True}
+            },
+            RELATION: DECREASES,
+        }
+
+        self.assertHasEdge(graph, f, g, **edge_data_2)
 
 
 if __name__ == '__main__':

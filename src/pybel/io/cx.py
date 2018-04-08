@@ -18,13 +18,15 @@ of Cytoscape.
 
 import json
 import logging
-import time
 from collections import defaultdict
-from ..dsl.nodes import BaseEntity
-from ..canonicalize import node_to_bel
+
+import time
+
 from ..constants import *
+from ..dsl.nodes import BaseEntity
 from ..struct import BELGraph
-from ..utils import expand_dict, flatten_dict, hash_node
+from ..tokens import dict_to_entity
+from ..utils import expand_dict, flatten_dict
 
 CX_NODE_NAME = 'label'
 
@@ -42,21 +44,7 @@ log = logging.getLogger(__name__)
 
 NDEX_SOURCE_FORMAT = "ndex:sourceFormat"
 
-
-def _dict_to_cx(d, key_tag='k', value_tag='v'):
-    """
-    :param dict d:
-    :param str key_tag:
-    :param str value_tag:
-    :rtype: list[dict]
-    """
-    return [
-        {
-            key_tag: k,
-            value_tag: v
-        }
-        for k, v in d.items()
-    ]
+_listy_keys = {PRODUCTS, REACTANTS, MEMBERS}
 
 
 def _cx_to_dict(list_of_dicts, key_tag='k', value_tag='v'):
@@ -72,18 +60,14 @@ def _cx_to_dict(list_of_dicts, key_tag='k', value_tag='v'):
     }
 
 
-def calculate_canonical_cx_identifier(graph, node):
+def _calculate_canonical_cx_identifier(node):
     """Calculates the canonical name for a given node. If it is a simple node, uses the namespace:name combination.
     Otherwise, it uses the BEL string.
 
-    :param BELGraph graph: A BEL Graph
     :param BaseEntity node: A node
     :return: Appropriate identifier for the node for CX indexing
     :rtype: str
     """
-    if not isinstance(node, BaseEntity):
-        raise RuntimeError('stop using tuples! Got class {}: {}'.format(node.__class__.__name__, node))
-
     if node[FUNCTION] == COMPLEX and NAMESPACE in node:
         return '{}:{}'.format(node[NAMESPACE], node[NAME])
 
@@ -96,17 +80,105 @@ def calculate_canonical_cx_identifier(graph, node):
     raise ValueError('Unexpected node data: {}'.format(node))
 
 
-def build_node_mapping(graph):
-    """Builds a mapping from a graph's nodes to their canonical sort order
-    
-    :param BELGraph graph: A BEL graph 
-    :return: A mapping from a graph's nodes to their canonical sort order
-    :rtype: dict[tuple,int]
+def node_to_cx(nid, node):
+    """Converts an entity to a list of CX attributes
+
+    :param int nid:
+    :param BaseEntity node:
+    :rtype: list[dict]
     """
-    return {
-        node: node_index
-        for node_index, node in enumerate(sorted(graph, key=hash_node))
-    }
+    rv = []
+
+    for key, v in node.items():
+        if key == VARIANTS:
+            for i, el in enumerate(v):
+                for a, b in flatten_dict(el).items():
+                    rv.append({
+                        'po': nid,
+                        'n': '{}_{}_{}'.format(key, i, a),
+                        'v': b
+                    })
+        elif key == FUSION:
+            for a, b in flatten_dict(v).items():
+                rv.append({
+                    'po': nid,
+                    'n': '{}_{}'.format(key, a),
+                    'v': b
+                })
+
+        elif key == NAME:
+            rv.append({
+                'po': nid,
+                'n': CX_NODE_NAME,
+                'v': v
+            })
+
+        elif key in _listy_keys:
+            rv.append({
+                'po': nid,
+                'n': key,
+                'v': json.dumps(v)
+            })
+
+        else:
+            rv.append({
+                'po': nid,
+                'n': key,
+                'v': v
+            })
+
+    return rv
+
+
+def edge_to_cx(key, data):
+    """Converts the edge hash (key) and edge data to a list of CX entries
+
+    :param int key: The edge key
+    :param dict data: The edge data dictionary
+    :rtype: list[dict]
+    """
+    rv = []
+
+    if EVIDENCE in data:
+        rv.append({
+            'po': key,
+            'n': EVIDENCE,
+            'v': data[EVIDENCE]
+        })
+
+        for citation_key, value in data[CITATION].items():
+            rv.append({
+                'po': key,
+                'n': '{}_{}'.format(CITATION, citation_key),
+                'v': value
+            })
+
+    if ANNOTATIONS in data:
+        for annotation, values in data[ANNOTATIONS].items():
+            rv.append({
+                'po': key,
+                'n': annotation,
+                'v': sorted(values),
+                'd': 'list_of_string',
+            })
+
+    if SUBJECT in data:
+        for subject_key, value in flatten_dict(data[SUBJECT]).items():
+            rv.append({
+                'po': key,
+                'n': '{}_{}'.format(SUBJECT, subject_key),
+                'v': value
+            })
+
+    if OBJECT in data:
+        for object_key, value in flatten_dict(data[OBJECT]).items():
+            rv.append({
+                'po': key,
+                'n': '{}_{}'.format(OBJECT, object_key),
+                'v': value
+            })
+
+    return rv
 
 
 def to_cx(graph):
@@ -122,110 +194,31 @@ def to_cx(graph):
         - `PyBEL / NDEx Python Client Wrapper <https://github.com/pybel/pybel2ndex>`_
 
     """
-    node_mapping = build_node_mapping(graph)
-    node_index_data = {}
-    nodes_entry = []
-    node_attributes_entry = []
+    nodes_aspect = []
+    nodes_attributes_aspect = []
 
-    for node, node_index in node_mapping.items():
-        data = graph.node[node]
-        node_index_data[node_index] = data
+    node_to_id = {}
 
-        nodes_entry.append({
-            '@id': node_index,
-            'n': calculate_canonical_cx_identifier(graph, node)
+    for nid, node in enumerate(sorted(graph)):
+        node_to_id[node] = nid
+        nodes_aspect.append({
+            '@id': nid,
+            'n': _calculate_canonical_cx_identifier(node)
         })
 
-        for k, v in data.items():
-            if k == VARIANTS:
-                for i, el in enumerate(v):
-                    for a, b in flatten_dict(el).items():
-                        node_attributes_entry.append({
-                            'po': node_index,
-                            'n': '{}_{}_{}'.format(k, i, a),
-                            'v': b
-                        })
-            elif k == FUSION:
-                for a, b in flatten_dict(v).items():
-                    node_attributes_entry.append({
-                        'po': node_index,
-                        'n': '{}_{}'.format(k, a),
-                        'v': b
-                    })
+        nodes_attributes_aspect.extend(node_to_cx(nid, node))
 
-            elif k == NAME:
-                node_attributes_entry.append({
-                    'po': node_index,
-                    'n': CX_NODE_NAME,
-                    'v': v
-                })
+    edges_aspect = []
+    edges_attributes_aspect = []
 
-            elif k in {PRODUCTS, REACTANTS, MEMBERS}:
-                node_attributes_entry.append({
-                    'po': node_index,
-                    'n': k,
-                    'v': json.dumps(v)
-                })
-
-            else:
-                node_attributes_entry.append({
-                    'po': node_index,
-                    'n': k,
-                    'v': v
-                })
-
-    edges_entry = []
-    edge_attributes_entry = []
-
-    for edge_index, (source, target, d) in enumerate(graph.edges_iter(data=True)):
-        uid = node_mapping[source]
-        vid = node_mapping[target]
-
-        edges_entry.append({
-            '@id': edge_index,
-            's': uid,
-            't': vid,
-            'i': d[RELATION],
+    for eid, (u, v, data) in enumerate(graph.edges(data=True)):
+        edges_aspect.append({
+            '@id': eid,
+            's': node_to_id[u],
+            't': node_to_id[v],
+            'i': data[RELATION],
         })
-
-        if EVIDENCE in d:
-            edge_attributes_entry.append({
-                'po': edge_index,
-                'n': EVIDENCE,
-                'v': d[EVIDENCE]
-            })
-
-            for k, v in d[CITATION].items():
-                edge_attributes_entry.append({
-                    'po': edge_index,
-                    'n': '{}_{}'.format(CITATION, k),
-                    'v': v
-                })
-
-        if ANNOTATIONS in d:
-            for annotation, values in d[ANNOTATIONS].items():
-                edge_attributes_entry.append({
-                    'po': edge_index,
-                    'n': annotation,
-                    'v': sorted(values),
-                    'd': 'list_of_string',
-                })
-
-        if SUBJECT in d:
-            for k, v in flatten_dict(d[SUBJECT]).items():
-                edge_attributes_entry.append({
-                    'po': edge_index,
-                    'n': '{}_{}'.format(SUBJECT, k),
-                    'v': v
-                })
-
-        if OBJECT in d:
-            for k, v in flatten_dict(d[OBJECT]).items():
-                edge_attributes_entry.append({
-                    'po': edge_index,
-                    'n': '{}_{}'.format(OBJECT, k),
-                    'v': v
-                })
+        edges_attributes_aspect.extend(edge_to_cx(eid, data))
 
     context_legend = {}
 
@@ -250,20 +243,20 @@ def to_cx(graph):
     for key in graph.annotation_list:
         context_legend[key] = GRAPH_ANNOTATION_LIST
 
-    context_legend_entry = []
+    context_legend_aspect = []
     for keyword, resource_type in context_legend.items():
-        context_legend_entry.append({
+        context_legend_aspect.append({
             'k': keyword,
             'v': resource_type
         })
 
     annotation_list_keys_lookup = {keyword: i for i, keyword in enumerate(sorted(graph.annotation_list))}
-    annotation_lists_entry = []
+    annotation_lists_aspect = []
     for keyword, values in graph.annotation_list.items():
-        for values in values:
-            annotation_lists_entry.append({
+        for value in values:
+            annotation_lists_aspect.append({
                 'k': annotation_list_keys_lookup[keyword],
-                'v': values
+                'v': value
             })
 
     context_entry_dict = {}
@@ -274,17 +267,16 @@ def to_cx(graph):
     context_entry_dict.update(graph.annotation_pattern)
     context_entry_dict.update(graph.annotation_owl)
     context_entry_dict.update(annotation_list_keys_lookup)
-
     context_entry_dict.update(graph.namespace_url)
-    context_entry = [context_entry_dict]
+    context_aspect = [context_entry_dict]
 
-    network_attributes_entry = [{
+    network_attributes_aspect = [{
         "n": NDEX_SOURCE_FORMAT,
         "v": "PyBEL"
     }]
-    for k, v in graph.document.items():
-        network_attributes_entry.append({
-            'n': k,
+    for key, v in graph.document.items():
+        network_attributes_aspect.append({
+            'n': key,
             'v': v
         })
 
@@ -293,15 +285,17 @@ def to_cx(graph):
     cx = [{'numberVerification': [{'longNumber': 281474976710655}]}]
 
     cx_pairs = [
-        ('@context', context_entry),
-        ('context_legend', context_legend_entry),
-        ('annotation_lists', annotation_lists_entry),
-        ('networkAttributes', network_attributes_entry),
-        ('nodes', nodes_entry),
-        ('nodeAttributes', node_attributes_entry),
-        ('edges', edges_entry),
-        ('edgeAttributes', edge_attributes_entry),
+        ('@context', context_aspect),
+        ('context_legend', context_legend_aspect),
+        ('networkAttributes', network_attributes_aspect),
+        ('nodes', nodes_aspect),
+        ('nodeAttributes', nodes_attributes_aspect),
+        ('edges', edges_aspect),
+        ('edgeAttributes', edges_attributes_aspect),
     ]
+
+    if annotation_lists_aspect:  # don't include an empty entry!
+        cx_pairs.append(('annotation_lists', annotation_lists_aspect))
 
     cx_metadata = []
 
@@ -382,13 +376,13 @@ def from_cx(cx):
     """
     graph = BELGraph()
 
+    context_aspect = {}
     context_legend_aspect = []
     annotation_lists_aspect = []
-    context_entry = {}
     network_attributes_aspect = []
     nodes_aspect = []
-    node_attributes_aspect = []
-    edge_annotations_aspect = []
+    nodes_attributes_aspect = []
+    edges_attributes_aspect = []
     edges_aspect = []
     meta_entries = defaultdict(list)
 
@@ -400,7 +394,7 @@ def from_cx(cx):
             annotation_lists_aspect.extend(value)
 
         elif key == '@context':
-            context_entry.update(value[0])
+            context_aspect.update(value[0])
 
         elif key == 'networkAttributes':
             network_attributes_aspect.extend(value)
@@ -409,14 +403,13 @@ def from_cx(cx):
             nodes_aspect.extend(value)
 
         elif key == 'nodeAttributes':
-            node_attributes_aspect.extend(value)
+            nodes_attributes_aspect.extend(value)
 
         elif key == 'edges':
-            log.warning('got edge: %s', value)  # FIXME REMOVE
             edges_aspect.extend(value)
 
         elif key == 'edgeAttributes':
-            edge_annotations_aspect.extend(value)
+            edges_attributes_aspect.extend(value)
 
         else:
             meta_entries[key].extend(value)
@@ -427,7 +420,7 @@ def from_cx(cx):
     for data in annotation_lists_aspect:
         annotation_lists[data['k']].add(data['v'])
 
-    for keyword, entry in context_entry.items():
+    for keyword, entry in context_aspect.items():
         if context_legend[keyword] == GRAPH_NAMESPACE_URL:
             graph.namespace_url[keyword] = entry
         elif context_legend[keyword] == GRAPH_NAMESPACE_OWL:
@@ -448,53 +441,76 @@ def from_cx(cx):
             continue
         graph.graph[GRAPH_METADATA][data['n']] = data['v']
 
-    node_name = {}
+    nid_to_name = {}
     for data in nodes_aspect:
-        node_name[data['@id']] = data['n']
+        nid = data['@id']
+        node_name = data['n']
+        nid_to_name[nid] = node_name
 
-    node_data = defaultdict(dict)
-    for data in node_attributes_aspect:
-        node_data[data['po']][data['n']] = data['v']
+    nid_to_flattened_data = defaultdict(dict)
+    for data in nodes_attributes_aspect:
+        nid = data['po']
+        nid_to_flattened_data[nid][data['n']] = data['v']
 
+    # put all normal data here
     node_data_pp = defaultdict(dict)
+
+    # Group all fusion-related data here
     node_data_fusion = defaultdict(dict)
+
+    # Group all variant-related data
     node_data_variants = defaultdict(lambda: defaultdict(dict))
 
-    for nid, data in node_data.items():
-        for key, value in data.items():
+    for nid, flattened_data in nid_to_flattened_data.items():
+        for key, value in flattened_data.items():
             if key.startswith(FUSION):
                 node_data_fusion[nid][key] = value
             elif key.startswith(VARIANTS):
                 _, i, vls = key.split('_', 2)
                 node_data_variants[nid][i][vls] = value
-            elif key in {PRODUCTS, REACTANTS, MEMBERS}:
+            elif key in _listy_keys:
                 node_data_pp[nid][key] = json.loads(value)
             else:
                 node_data_pp[nid][key] = value
 
     for nid, data in node_data_fusion.items():
-        node_data_pp[nid][FUSION] = expand_dict(data)
+        node_data_pp[nid].update(expand_dict(data))
 
     for nid, data in node_data_variants.items():
-        node_data_pp[nid][VARIANTS] = [expand_dict(data[i]) for i in sorted(data)]
+        node_data_pp[nid][VARIANTS] = [
+            expand_dict(value)
+            for _, value in sorted(data.items())
+        ]
 
+    nid_node = {}
     for nid, data in node_data_pp.items():
         if CX_NODE_NAME in data:
             data[NAME] = data.pop(CX_NODE_NAME)
-        graph.add_node(nid, attr_dict=data)
+
+        node = dict_to_entity(data)
+        nid_node[nid] = node
+        graph.add_entity(node)
 
     edge_relation = {}
     edge_source = {}
     edge_target = {}
     for data in edges_aspect:
-        eid = data['@id']
-        edge_relation[eid] = data['i']
-        edge_source[eid] = data['s']
-        edge_target[eid] = data['t']
+        edge_key = data['@id']  # SHA512 hash of the edge
+
+        edge_relation[edge_key] = data['i']
+
+        source_nid =data['s']
+        source_node = nid_node[source_nid]
+        edge_source[edge_key] = source_node
+
+        target_nid = data['t']
+        target_node = nid_node[target_nid]
+        edge_target[edge_key] = target_node
 
     edge_data = defaultdict(dict)
-    for data in edge_annotations_aspect:
-        edge_data[data['po']][data['n']] = data['v']
+    for data in edges_attributes_aspect:
+        edge_key = data['po']  # SHA512 hash of the edge
+        edge_data[edge_key][data['n']] = data['v']
 
     edge_citation = defaultdict(dict)
     edge_subject = defaultdict(dict)
@@ -503,57 +519,62 @@ def from_cx(cx):
 
     edge_data_pp = defaultdict(dict)
 
-    for eid, data in edge_data.items():
+    for edge_key, data in edge_data.items():
         for key, value in data.items():
+
             if key.startswith(CITATION):
                 _, vl = key.split('_', 1)
-                edge_citation[eid][vl] = value
+                edge_citation[edge_key][vl] = value
+
             elif key.startswith(SUBJECT):
                 _, vl = key.split('_', 1)
-                edge_subject[eid][vl] = value
+                edge_subject[edge_key][vl] = value
+
             elif key.startswith(OBJECT):
                 _, vl = key.split('_', 1)
-                edge_object[eid][vl] = value
+                edge_object[edge_key][vl] = value
+
             elif key == EVIDENCE:
-                edge_data_pp[eid][EVIDENCE] = value
+                edge_data_pp[edge_key][EVIDENCE] = value
+
             else:
-                edge_annotations[eid][key] = value
+                edge_annotations[edge_key][key] = value
 
-    for eid, data in edge_citation.items():
-        edge_data_pp[eid][CITATION] = data
+    for key, data in edge_citation.items():
+        edge_data_pp[key][CITATION] = data
 
-    for eid, data in edge_subject.items():
-        edge_data_pp[eid][SUBJECT] = expand_dict(data)
+    for key, data in edge_subject.items():
+        edge_data_pp[key][SUBJECT] = expand_dict(data)
 
-    for eid, data in edge_object.items():
-        edge_data_pp[eid][OBJECT] = expand_dict(data)
+    for key, data in edge_object.items():
+        edge_data_pp[key][OBJECT] = expand_dict(data)
 
-    for eid in edge_relation:
-        if eid in edge_annotations:  # FIXME stick this in edge_data.items() iteration
-            edge_data_pp[eid][ANNOTATIONS] = {
-                key: {v: True for v in values}
-                for key, values in edge_annotations[eid].items()
+    for key in edge_relation:
+        if key in edge_annotations:  # FIXME stick this in edge_data.items() iteration
+            edge_data_pp[key][ANNOTATIONS] = {
+                key: {value: True for value in values}
+                for key, values in edge_annotations[key].items()
             }
 
-        if eid in edge_citation:
+        u = edge_source[key]
+        v = edge_target[key]
+        relation = edge_relation[key]
+
+        if key in edge_citation:  # being present in this dictionary this means that there is a citation
             graph.add_qualified_edge(
-                edge_source[eid],
-                edge_target[eid],
-                relation=edge_relation[eid],
-                citation=edge_data_pp[eid][CITATION],
-                evidence=edge_data_pp[eid][EVIDENCE],
-                subject_modifier=edge_data_pp[eid].get(SUBJECT),
-                object_modifier=edge_data_pp[eid].get(OBJECT),
-                annotations=edge_data_pp[eid].get(ANNOTATIONS)
+                u,
+                v,
+                relation=relation,
+                citation=edge_data_pp[key][CITATION],
+                evidence=edge_data_pp[key][EVIDENCE],
+                subject_modifier=edge_data_pp[key].get(SUBJECT),
+                object_modifier=edge_data_pp[key].get(OBJECT),
+                annotations=edge_data_pp[key].get(ANNOTATIONS)
             )
-        elif edge_relation[eid] in unqualified_edges:
-            graph.add_unqualified_edge(
-                edge_source[eid],
-                edge_target[eid],
-                edge_relation[eid]
-            )
+        elif relation in unqualified_edges:
+            graph.add_unqualified_edge(u, v, relation)
         else:
-            raise ValueError('problem adding edge: {}'.format(eid))
+            raise ValueError('problem adding edge: {}'.format(key))
 
     return graph
 

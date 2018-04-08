@@ -8,7 +8,7 @@ import itertools as itt
 import logging
 
 from .constants import *
-from .dsl.nodes import BaseEntity, Variant, FusionRangeBase
+from .dsl.nodes import BaseEntity, FusionRangeBase, Variant
 from .resources.document import make_knowledge_header
 from .utils import ensure_quotes
 
@@ -16,7 +16,6 @@ __all__ = [
     'to_bel_lines',
     'to_bel',
     'to_bel_path',
-    'node_to_bel',
     'edge_to_bel',
 ]
 
@@ -82,15 +81,6 @@ def fusion_range_to_bel(tokens):
         return tokens.as_bel()
 
     raise RuntimeError('should be using DSL')
-
-
-def node_to_bel(data):
-    """Returns a node data dictionary as a BEL string
-
-    :param dict data: A PyBEL node data dictionary
-    :rtype: str
-    """
-    raise RuntimeError('stop using tuples')
 
 
 def _decanonicalize_edge_node(node, edge_data, node_position):
@@ -387,27 +377,25 @@ def _use_node_to_bel(data):
 
     return False
 
-def calculate_canonical_name(graph, node):
+
+def calculate_canonical_name(node):
     """Calculates the canonical name for a given node. If it is a simple node, uses the already given name.
     Otherwise, it uses the BEL string.
 
-    :param BELGraph graph: A BEL Graph
-    :param tuple node: A PyBEL node tuple
+    :param BaseEntity node: A PyBEL node tuple
     :return: Canonical node name
     :rtype: str
     """
-    data = graph.node[node]
+    if node[FUNCTION] == COMPLEX and NAMESPACE in node:
+        return node[NAME]
 
-    if data[FUNCTION] == COMPLEX and NAMESPACE in data:
-        return graph.node[node][NAME]
+    if _use_node_to_bel(node):
+        return node.as_bel()
 
-    if _use_node_to_bel(data):
-        return node_to_bel(data)
+    if VARIANTS not in node and FUSION not in node:  # this is should be a simple node
+        return node[NAME]
 
-    if VARIANTS not in data and FUSION not in data:  # this is should be a simple node
-        return graph.node[node][NAME]
-
-    raise ValueError('Unexpected node data: {}'.format(data))
+    raise ValueError('Unexpected node data: {}'.format(node))
 
 
 def _canonicalize_edge_modifications(data):

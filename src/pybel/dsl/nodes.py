@@ -41,8 +41,8 @@ __all__ = [
 ]
 
 
-def _sort_tuplables(abundances):
-    return sorted(abundances, key=lambda abundance: abundance.as_tuple())
+def _sort_by_bel(elements):
+    return sorted(elements, key=lambda e: e.as_bel())
 
 
 @six.add_metaclass(abc.ABCMeta)
@@ -91,6 +91,16 @@ class BaseEntity(dict):
         :rtype: str
         """
         return hash_node(self.as_tuple())
+
+    def __lt__(self, other):
+        """
+        :param BaseEntity other:
+        :rtype: bool
+        """
+        if not isinstance(other, BaseEntity):
+            raise TypeError('not BaseEntity: {} {}'.format(other.__class__.__name__, other))
+
+        return self.as_bel() < other.as_bel()
 
     def __hash__(self):
         """Use the tuple serialization of this node as the hash
@@ -145,7 +155,18 @@ class BaseAbundance(BaseEntity):
 
     @property
     def _prioritized_name(self):
+        """
+        :rtype: str
+        """
         return self.identifier if self.identifier else self.name
+
+    def _get_ns_arg(self):
+        """Gets the qualified name for this entity
+
+        Usually will be NS:NAME or NS:IDENTIFIER, but there will be a proposal to BEL to allow for the namespace and
+        identifier to be disambiguated with a hashtag, so one or both can be written like NS[:NAME][#IDENTIFIER]
+        """
+        return '{}:{}'.format(self.namespace, ensure_quotes(self._prioritized_name))
 
     def as_tuple(self):
         """Returns this node as a PyBEL node tuple
@@ -159,10 +180,9 @@ class BaseAbundance(BaseEntity):
 
         :rtype: str
         """
-        return "{}({}:{})".format(
+        return "{}({})".format(
             self.short_bel_function,
-            self.namespace,
-            ensure_quotes(self._prioritized_name)
+            self._get_ns_arg()
         )
 
 
@@ -229,8 +249,8 @@ class CentralDogma(BaseAbundance):
 
         if isinstance(variants, Variant):
             self[VARIANTS] = [variants]
-        elif variants:
-            self[VARIANTS] = _sort_tuplables(variants)
+        elif variants is not None:
+            self[VARIANTS] = _sort_by_bel(variants)
 
     @property
     def variants(self):
@@ -240,25 +260,12 @@ class CentralDogma(BaseAbundance):
         """
         return self.get(VARIANTS)
 
-    def _variants_as_tuple(self):
-        """Return the variants as a tuple
-
-        :rtype: tuple
-        """
-        if self.variants is None:
-            raise ValueError
-
-        return tuple(sorted(
-            variant.as_tuple()
-            for variant in self.variants)
-        )
-
     def as_tuple(self):
         """Converts to a tuple"""
         t = super(CentralDogma, self).as_tuple()
 
-        if self.variants is not None:
-            return t + self._variants_as_tuple()
+        if self.variants:
+            return t + _tuplable_list_as_tuple(self.variants)
 
         return t
 
@@ -270,19 +277,20 @@ class CentralDogma(BaseAbundance):
         if not self.variants:
             return super(CentralDogma, self).as_bel()
 
-        variants_canon = sorted(map(str, self.variants))
+        variants_bel = (variant.as_bel() for variant in self.variants)
 
-        return "{}({}:{}, {})".format(
+        return '{}({}, {})'.format(
             self.short_bel_function,
-            self.namespace,
-            ensure_quotes(self[NAME]),
-            ', '.join(variants_canon)
+            self._get_ns_arg(),
+            ', '.join(variants_bel)
         )
 
     def get_parent(self):
         """Gets the parent, or none if it's already a reference node
 
         :rtype: Optional[CentralDogma]
+
+        Example usage:
 
         >>> ab42 = protein(name='APP', namespace='HGNC', variants=[fragment(start=672, stop=713)])
         >>> app = ab42.get_parent()
@@ -292,6 +300,25 @@ class CentralDogma(BaseAbundance):
             return
 
         return self.__class__(namespace=self.namespace, name=self.name, identifier=self.identifier)
+
+    def with_variants(self, variants):
+        """Creates a new entity with the given variants
+
+        :param Variant or list[Variant] variants: An optional variant or list of variants
+        :rtype: CentralDogma
+
+        Example Usage:
+
+        >>> app = protein(name='APP', namespace='HGNC')
+        >>> ab42 = app.with_variants([fragment(start=672, stop=713)])
+        >>> assert 'p(HGNC:APP, frag(672_713)' == ab42.as_bel()
+        """
+        return self.__class__(
+            namespace=self.namespace,
+            name=self.name,
+            identifier=self.identifier,
+            variants=variants
+        )
 
 
 @six.add_metaclass(abc.ABCMeta)
@@ -320,6 +347,12 @@ class Variant(dict):
 
         :rtype: str
         """
+
+    def __lt__(self, other):
+        if not isinstance(other, Variant):
+            raise TypeError
+
+        return self.as_bel() < other.as_bel()
 
 
 class pmod(Variant):
@@ -532,6 +565,10 @@ class fragment(Variant):
         Example of unspecified fragment:
 
         >>> protein(name='APP', namespace='HGNC', variants=[fragment()])
+
+        Example of a fragment specified by its description:
+
+        >>> protein(name='APP', namespace='HGNC', variants=[fragment(description='55kD')])
         """
         super(fragment, self).__init__(FRAGMENT)
 
@@ -670,7 +707,7 @@ class protein(CentralDogma):
         super(protein, self).__init__(PROTEIN, namespace, name=name, identifier=identifier, variants=variants)
 
 
-def _entity_list_as_tuple(entities):
+def _tuplable_list_as_tuple(entities):
     """A helper function for converting reaction list
 
     :type entities: iter[BaseEntity]
@@ -693,8 +730,8 @@ class reaction(BaseEntity):
 
     def __init__(self, reactants, products):
         """
-        :param BaseAbundance or list[BaseAbundance] reactants: An entity or list of entities participating as reactants
-        :param BaseAbundance or list[BaseAbundance] products: An entity or list of entities participating as products
+        :param BaseAbundance or iter[BaseAbundance] reactants: An entity or list of entities participating as reactants
+        :param BaseAbundance or iter[BaseAbundance] products: An entity or list of entities participating as products
 
         Example:
 
@@ -705,12 +742,12 @@ class reaction(BaseEntity):
         if isinstance(reactants, BaseAbundance):
             self[REACTANTS] = [reactants]
         else:
-            self[REACTANTS] = _sort_tuplables(reactants)
+            self[REACTANTS] = _sort_by_bel(reactants)
 
         if isinstance(products, BaseAbundance):
             self[PRODUCTS] = [products]
         else:
-            self[PRODUCTS] = _sort_tuplables(products)
+            self[PRODUCTS] = _sort_by_bel(products)
 
     def as_tuple(self):
         """Returns the reaction as a canonicalized tuple
@@ -719,8 +756,8 @@ class reaction(BaseEntity):
         """
         return (
             self[FUNCTION],
-            _entity_list_as_tuple(self[REACTANTS]),
-            _entity_list_as_tuple(self[PRODUCTS])
+            _tuplable_list_as_tuple(self[REACTANTS]),
+            _tuplable_list_as_tuple(self[PRODUCTS])
         )
 
     def as_bel(self):
@@ -743,14 +780,14 @@ class ListAbundance(BaseEntity):
         :param list[BaseAbundance] members: A list of PyBEL node data dictionaries
         """
         super(ListAbundance, self).__init__(func=func)
-        self[MEMBERS] = _sort_tuplables(members)
+        self[MEMBERS] = _sort_by_bel(members)
 
     def as_tuple(self):
         """Returns the list abundance as a canonicalized tuple
 
         :rtype: tuple
         """
-        return (self[FUNCTION],) + _entity_list_as_tuple(self[MEMBERS])
+        return (self[FUNCTION],) + _tuplable_list_as_tuple(self[MEMBERS])
 
     def as_bel(self):
         """Returns the list abundance as canonicalized BEL
@@ -899,48 +936,48 @@ class fusion_range(FusionRangeBase):
 class FusionBase(BaseEntity):
     """The superclass for building fusion node data dictionaries"""
 
-    def __init__(self, func, partner_5p, partner_3p, range_5p=None, range_3p=None):
+    def __init__(self, func, partner5p, partner3p, range5p=None, range3p=None):
         """
         :param str func: A PyBEL function
-        :param CentralDogma partner_5p: A PyBEL node data dictionary for the 5-prime partner
-        :param CentralDogma partner_3p: A PyBEL node data dictionary for the 3-prime partner
-        :param Optional[FusionRangeBase] range_5p: A fusion range for the 5-prime partner
-        :param Optional[FusionRangeBase] range_3p: A fusion range for the 3-prime partner
+        :param CentralDogma partner5p: A PyBEL node data dictionary for the 5-prime partner
+        :param CentralDogma partner3p: A PyBEL node data dictionary for the 3-prime partner
+        :param Optional[FusionRangeBase] range5p: A fusion range for the 5-prime partner
+        :param Optional[FusionRangeBase] range3p: A fusion range for the 3-prime partner
         """
         super(FusionBase, self).__init__(func=func)
         self.update({
             FUNCTION: func,
             FUSION: {
-                PARTNER_5P: partner_5p,
-                PARTNER_3P: partner_3p,
-                RANGE_5P: range_5p or missing_fusion_range(),
-                RANGE_3P: range_3p or missing_fusion_range()
+                PARTNER_5P: partner5p,
+                PARTNER_3P: partner3p,
+                RANGE_5P: range5p or missing_fusion_range(),
+                RANGE_3P: range3p or missing_fusion_range()
             }
         })
 
     @property
-    def partner_5p(self):
+    def partner5p(self):
         """
         :rtype: CentralDogma
         """
         return self[FUSION][PARTNER_5P]
 
     @property
-    def partner_3p(self):
+    def partner3p(self):
         """
         :rtype: CentralDogma
         """
         return self[FUSION][PARTNER_3P]
 
     @property
-    def range_5p(self):
+    def range5p(self):
         """
         :rtype: FusionRangeBase
         """
         return self[FUSION][RANGE_5P]
 
     @property
-    def range_3p(self):
+    def range3p(self):
         """
         :rtype: FusionRangeBase
         """
@@ -953,12 +990,12 @@ class FusionBase(BaseEntity):
         """
         return "{}(fus({}:{}, {}, {}:{}, {}))".format(
             self.short_bel_function,
-            self.partner_5p[NAMESPACE],
-            self.partner_5p[NAME],
-            str(self.range_5p),
-            self.partner_3p[NAMESPACE],
-            self.partner_3p[NAME],
-            str(self.range_3p)
+            self.partner5p[NAMESPACE],
+            self.partner5p[NAME],
+            str(self.range5p),
+            self.partner3p[NAMESPACE],
+            self.partner3p[NAME],
+            str(self.range3p)
         )
 
     def as_tuple(self):
@@ -970,8 +1007,8 @@ class FusionBase(BaseEntity):
 
         partner5p = fusion[PARTNER_5P][NAMESPACE], fusion[PARTNER_5P][NAME]
         partner3p = fusion[PARTNER_3P][NAMESPACE], fusion[PARTNER_3P][NAME]
-        range5p = self.range_5p.as_tuple()
-        range3p = self.range_3p.as_tuple()
+        range5p = self.range5p.as_tuple()
+        range3p = self.range3p.as_tuple()
 
         return (
             self.function,
@@ -985,74 +1022,74 @@ class FusionBase(BaseEntity):
 class protein_fusion(FusionBase):
     """Builds a protein fusion data dictionary"""
 
-    def __init__(self, partner_5p, partner_3p, range_5p=None, range_3p=None):
+    def __init__(self, partner5p, partner3p, range5p=None, range3p=None):
         """
-        :param pybel.dsl.protein partner_5p: A PyBEL node data dictionary for the 5-prime partner
-        :param pybel.dsl.protein partner_3p: A PyBEL node data dictionary for the 3-prime partner
-        :param Optional[FusionRangeBase] range_5p: A fusion range for the 5-prime partner
-        :param Optional[FusionRangeBase] range_3p: A fusion range for the 3-prime partner
+        :param pybel.dsl.protein partner5p: A PyBEL node data dictionary for the 5-prime partner
+        :param pybel.dsl.protein partner3p: A PyBEL node data dictionary for the 3-prime partner
+        :param Optional[FusionRangeBase] range5p: A fusion range for the 5-prime partner
+        :param Optional[FusionRangeBase] range3p: A fusion range for the 3-prime partner
         """
-        super(protein_fusion, self).__init__(PROTEIN, partner_5p=partner_5p, range_5p=range_5p, partner_3p=partner_3p,
-                                             range_3p=range_3p)
+        super(protein_fusion, self).__init__(PROTEIN, partner5p=partner5p, range5p=range5p, partner3p=partner3p,
+                                             range3p=range3p)
 
 
 class rna_fusion(FusionBase):
     """Builds an RNA fusion data dictionary"""
 
-    def __init__(self, partner_5p, partner_3p, range_5p=None, range_3p=None):
+    def __init__(self, partner5p, partner3p, range5p=None, range3p=None):
         """
-        :param pybel.dsl.rna partner_5p: A PyBEL node data dictionary for the 5-prime partner
-        :param pybel.dsl.rna partner_3p: A PyBEL node data dictionary for the 3-prime partner
-        :param Optional[FusionRangeBase] range_5p: A fusion range for the 5-prime partner
-        :param Optional[FusionRangeBase] range_3p: A fusion range for the 3-prime partner
+        :param pybel.dsl.rna partner5p: A PyBEL node data dictionary for the 5-prime partner
+        :param pybel.dsl.rna partner3p: A PyBEL node data dictionary for the 3-prime partner
+        :param Optional[FusionRangeBase] range5p: A fusion range for the 5-prime partner
+        :param Optional[FusionRangeBase] range3p: A fusion range for the 3-prime partner
 
         Example, with fusion ranges using the 'r' qualifier:
 
         >>> rna_fusion(
-        >>> ... partner_5p=rna(namespace='HGNC', name='TMPRSS2'),
-        >>> ... range_5p=fusion_range('r', 1, 79),
-        >>> ... partner_3p=rna(namespace='HGNC', name='ERG'),
-        >>> ... range_3p=fusion_range('r', 312, 5034)
+        >>> ... partner5p=rna(namespace='HGNC', name='TMPRSS2'),
+        >>> ... range5p=fusion_range('r', 1, 79),
+        >>> ... partner3p=rna(namespace='HGNC', name='ERG'),
+        >>> ... range3p=fusion_range('r', 312, 5034)
         >>> )
 
 
         Example with missing fusion ranges:
 
         >>> rna_fusion(
-        >>> ... partner_5p=rna(namespace='HGNC', name='TMPRSS2'),
-        >>> ... partner_3p=rna(namespace='HGNC', name='ERG'),
+        >>> ... partner5p=rna(namespace='HGNC', name='TMPRSS2'),
+        >>> ... partner3p=rna(namespace='HGNC', name='ERG'),
         >>> )
         """
-        super(rna_fusion, self).__init__(RNA, partner_5p=partner_5p, range_5p=range_5p, partner_3p=partner_3p,
-                                         range_3p=range_3p)
+        super(rna_fusion, self).__init__(RNA, partner5p=partner5p, range5p=range5p, partner3p=partner3p,
+                                         range3p=range3p)
 
 
 class gene_fusion(FusionBase):
     """Builds a gene fusion data dictionary"""
 
-    def __init__(self, partner_5p, partner_3p, range_5p=None, range_3p=None):
+    def __init__(self, partner5p, partner3p, range5p=None, range3p=None):
         """
-        :param pybel.dsl.gene partner_5p: A PyBEL node data dictionary for the 5-prime partner
-        :param pybel.dsl.gene partner_3p: A PyBEL node data dictionary for the 3-prime partner
-        :param Optional[FusionRangeBase] range_5p: A fusion range for the 5-prime partner
-        :param Optional[FusionRangeBase] range_3p: A fusion range for the 3-prime partner
+        :param pybel.dsl.gene partner5p: A PyBEL node data dictionary for the 5-prime partner
+        :param pybel.dsl.gene partner3p: A PyBEL node data dictionary for the 3-prime partner
+        :param Optional[FusionRangeBase] range5p: A fusion range for the 5-prime partner
+        :param Optional[FusionRangeBase] range3p: A fusion range for the 3-prime partner
 
         Example, using fusion ranges with the 'c' qualifier
 
         >>> gene_fusion(
-        >>> ... partner_5p=gene(namespace='HGNC', name='TMPRSS2'),
-        >>> ... range_5p=fusion_range('c', 1, 79),
-        >>> ... partner_3p=gene(namespace='HGNC', name='ERG'),
-        >>> ... range_3p=fusion_range('c', 312, 5034)
+        >>> ... partner5p=gene(namespace='HGNC', name='TMPRSS2'),
+        >>> ... range5p=fusion_range('c', 1, 79),
+        >>> ... partner3p=gene(namespace='HGNC', name='ERG'),
+        >>> ... range3p=fusion_range('c', 312, 5034)
         >>> )
 
 
         Example with missing fusion ranges:
 
         >>> gene_fusion(
-        >>> ... partner_5p=gene(namespace='HGNC', name='TMPRSS2'),
-        >>> ... partner_3p=gene(namespace='HGNC', name='ERG'),
+        >>> ... partner5p=gene(namespace='HGNC', name='TMPRSS2'),
+        >>> ... partner3p=gene(namespace='HGNC', name='ERG'),
         >>> )
         """
-        super(gene_fusion, self).__init__(GENE, partner_5p=partner_5p, range_5p=range_5p, partner_3p=partner_3p,
-                                          range_3p=range_3p)
+        super(gene_fusion, self).__init__(GENE, partner5p=partner5p, range5p=range5p, partner3p=partner3p,
+                                          range3p=range3p)

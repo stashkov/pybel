@@ -10,13 +10,12 @@ enable this option, but can specify a database location if they choose.
 from __future__ import unicode_literals
 
 import logging
-import time
 from collections import defaultdict
 from copy import deepcopy
 from itertools import chain, groupby
 
 import six
-from six import string_types
+import time
 from sqlalchemy import and_, exists, func
 from tqdm import tqdm
 
@@ -29,6 +28,7 @@ from .models import (
 )
 from .query_manager import QueryManager
 from .utils import extract_shared_optional, extract_shared_required, parse_owl, update_insert_values
+from ..canonicalize import edge_to_bel
 from ..constants import *
 from ..dsl.nodes import BaseEntity
 from ..language import (
@@ -1203,7 +1203,7 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
 
         annotations = self._get_annotation_entries(graph, data)
 
-        bel = graph.edge_to_bel(u, v, data=data)
+        bel = edge_to_bel(u, v, data=data)
         edge_hash = hash_edge(u, v, data)
         edge = self.get_or_create_edge(
             source=self.object_cache_node[u.as_sha512()],
@@ -1451,7 +1451,7 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
             citation.last = self.get_or_create_author(last)
 
         if authors is not None:
-            for author in (authors.split('|') if isinstance(authors, string_types) else authors):
+            for author in (authors.split('|') if isinstance(authors, six.string_types) else authors):
                 author_model = self.get_or_create_author(author)
                 if author_model not in citation.authors:
                     citation.authors.append(author_model)
@@ -1530,20 +1530,20 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
                 'p5_partner': p5_namespace_entry,
             }
 
-            node_range_3p = node_data.get(RANGE_3P)
-            if node_range_3p and FUSION_REFERENCE in node_range_3p:
+            node_range3p = node_data.get(RANGE_3P)
+            if node_range3p and FUSION_REFERENCE in node_range3p:
                 fusion_dict.update({
-                    'p3_reference': node_range_3p[FUSION_REFERENCE],
-                    'p3_start': node_range_3p[FUSION_START],
-                    'p3_stop': node_range_3p[FUSION_STOP],
+                    'p3_reference': node_range3p[FUSION_REFERENCE],
+                    'p3_start': node_range3p[FUSION_START],
+                    'p3_stop': node_range3p[FUSION_STOP],
                 })
 
-            node_range_5p = node_data.get(RANGE_5P)
-            if node_range_5p and FUSION_REFERENCE in node_range_5p:
+            node_range5p = node_data.get(RANGE_5P)
+            if node_range5p and FUSION_REFERENCE in node_range5p:
                 fusion_dict.update({
-                    'p5_reference': node_range_5p[FUSION_REFERENCE],
-                    'p5_start': node_range_5p[FUSION_START],
-                    'p5_stop': node_range_5p[FUSION_STOP],
+                    'p5_reference': node_range5p[FUSION_REFERENCE],
+                    'p5_start': node_range5p[FUSION_START],
+                    'p5_stop': node_range5p[FUSION_STOP],
                 })
 
             modification_list.append(fusion_dict)
@@ -1754,7 +1754,7 @@ class Manager(QueryManager, InsertManager, NetworkManager, EquivalenceManager, O
         :param dict kwargs: Keyword arguments to pass to the constructor of :class:`Manager`
         :rtype: Manager
         """
-        if connection is None or isinstance(connection, string_types):
+        if connection is None or isinstance(connection, six.string_types):
             return Manager(connection=connection, *args, **kwargs)
 
         return connection

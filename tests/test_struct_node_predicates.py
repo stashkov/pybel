@@ -35,7 +35,7 @@ g1 = gene(name='BRAF', namespace='HGNC', variants=[gmod('Me')])
 class TestNodePredicate(unittest.TestCase):
     def test_none(self):
         g = BELGraph()
-        p1_tuple = g.add_node_from_data(p1)
+        p1_tuple = g.add_entity(p1)
         self.assertTrue(keep_node_permissive(g, p1_tuple))
 
     def test_p1_data_variants(self):
@@ -53,7 +53,7 @@ class TestNodePredicate(unittest.TestCase):
 
     def test_p1_tuple_variants(self):
         g = BELGraph()
-        g.add_node_from_data(p1)
+        g.add_entity(p1)
 
         self.assertFalse(is_abundance(p1))
         self.assertFalse(is_abundance(p1))
@@ -81,7 +81,7 @@ class TestNodePredicate(unittest.TestCase):
 
     def test_p2_tuple_variants(self):
         g = BELGraph()
-        g.add_node_from_data(p2)
+        g.add_entity(p2)
 
         self.assertFalse(is_abundance(g, p2))
         self.assertFalse(is_gene(g, p2))
@@ -315,9 +315,9 @@ class TestInclusionExclusionGraph(TestInclusionExclusion):
     def setUp(self):
         super(TestInclusionExclusionGraph, self).setUp()
 
-        self.g.add_node_from_data(self.u)
-        self.g.add_node_from_data(self.v)
-        self.g.add_node_from_data(self.w)
+        self.g.add_entity(self.u)
+        self.g.add_entity(self.v)
+        self.g.add_entity(self.w)
 
     def test_exclude_u(self):
         f = node_exclusion_predicate_builder([self.u])

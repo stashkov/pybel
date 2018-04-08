@@ -62,10 +62,10 @@ il6 = hgnc('IL6')
 interleukin_23_il6_composite = composite_abundance([interleukin_23, il6])
 
 tmprss2_erg_gene_fusion = gene_fusion(
-    partner_5p=gene(namespace='HGNC', name='TMPRSS2'),
-    range_5p=fusion_range(reference='c', start=1, stop=79),
-    partner_3p=gene(namespace='HGNC', name='ERG'),
-    range_3p=fusion_range(reference='c', start=312, stop=5034)
+    partner5p=gene(namespace='HGNC', name='TMPRSS2'),
+    range5p=fusion_range(reference='c', start=1, stop=79),
+    partner3p=gene(namespace='HGNC', name='ERG'),
+    range3p=fusion_range(reference='c', start=312, stop=5034)
 )
 
 has_component_code = unqualified_edge_code[HAS_COMPONENT]
@@ -512,7 +512,7 @@ class TestAddNodeFromData(unittest.TestCase):
 
     def test_simple(self):
         node_data = hgnc('YFG')
-        self.graph.add_node_from_data(node_data)
+        self.graph.add_entity(node_data)
         self.assertIn(node_data, self.graph)
         self.assertEqual(1, self.graph.number_of_nodes())
 
@@ -522,7 +522,7 @@ class TestAddNodeFromData(unittest.TestCase):
         parent = node.get_parent()
         self.assertIsNotNone(parent, msg='unable to make parent')
 
-        self.graph.add_node_from_data(node)
+        self.graph.add_entity(node)
         self.assertIn(node, self.graph, msg='missing node')
 
         self.assertIn(parent, self.graph, msg='missing parent')
@@ -535,14 +535,14 @@ class TestAddNodeFromData(unittest.TestCase):
         parent = node.get_parent()
         self.assertIsNotNone(parent)
 
-        self.graph.add_node_from_data(node)
+        self.graph.add_entity(node)
         self.assertIn(node, self.graph)
         self.assertIn(parent, self.graph)
         self.assertEqual(2, self.graph.number_of_nodes())
         self.assertEqual(1, self.graph.number_of_edges())
 
     def test_fusion(self):
-        self.graph.add_node_from_data(tmprss2_erg_gene_fusion)
+        self.graph.add_entity(tmprss2_erg_gene_fusion)
         self.assertIn(tmprss2_erg_gene_fusion, self.graph)
         self.assertEqual(1, self.graph.number_of_nodes())
         self.assertEqual(0, self.graph.number_of_edges())
@@ -552,7 +552,7 @@ class TestAddNodeFromData(unittest.TestCase):
         il6 = hgnc('IL6')
         node = composite_abundance([il23, il6])
 
-        self.graph.add_node_from_data(node)
+        self.graph.add_entity(node)
         self.assertIn(node, self.graph)
         self.assertEqual(3, self.graph.number_of_nodes(), msg='wrong number of nodes: {}'.format(list(self.graph)))
         self.assertIn(il6, self.graph)
@@ -570,7 +570,7 @@ class TestAddNodeFromData(unittest.TestCase):
         self.assertEqual(HAS_COMPONENT, self.graph[node][il23][keys[0]][RELATION])
 
     def test_reaction(self):
-        self.graph.add_node_from_data(reaction_1)
+        self.graph.add_entity(reaction_1)
 
         self.assertIn(reaction_1, self.graph)
         self.assertIn(superoxide, self.graph)
@@ -597,7 +597,7 @@ class TestAddNodeFromData(unittest.TestCase):
         self.assertEqual(HAS_PRODUCT, self.graph[reaction_1][oxygen][keys[0]][RELATION])
 
     def test_complex(self):
-        self.graph.add_node_from_data(ap1_complex)
+        self.graph.add_entity(ap1_complex)
 
         self.assertIn(ap1_complex, self.graph)
         self.assertEqual(3, self.graph.number_of_nodes(), msg='nodes: {}'.format('\n'.join(map(str, self.graph))))
@@ -617,7 +617,7 @@ class TestAddNodeFromData(unittest.TestCase):
 
     def test_dimer_complex(self):
         """Tests what happens if a BEL statement complex(p(X), p(X)) is added"""
-        self.graph.add_node_from_data(egfr_dimer)
+        self.graph.add_entity(egfr_dimer)
 
         self.assertIn(egfr, self.graph)
         self.assertIn(egfr_dimer, self.graph)
@@ -631,7 +631,7 @@ class TestAddNodeFromData(unittest.TestCase):
 
     def test_nested_complex(self):
         """Checks what happens if a theoretical BEL statement `complex(p(X), complex(p(Y), p(Z)))` is added"""
-        self.graph.add_node_from_data(bound_ap1_e2f4)
+        self.graph.add_entity(bound_ap1_e2f4)
         self.assertIn(bound_ap1_e2f4, self.graph)
         self.assertEqual(5, self.graph.number_of_nodes())
         self.assertIn(fos, self.graph)
@@ -679,7 +679,7 @@ class TestReconstituteNodeTuples(TemporaryCacheMixin):
         graph = BELGraph(name='test', version='0.0.0')
         make_dummy_namespaces(self.manager, graph, namespace_dict)
 
-        graph.add_node_from_data(node_data)
+        graph.add_entity(node_data)
 
         self.manager.insert_graph(graph, store_parts=True)
         self.assertEqual(number_nodes, self.manager.count_nodes(),
@@ -690,7 +690,6 @@ class TestReconstituteNodeTuples(TemporaryCacheMixin):
         self.manager.session.commit()
 
         self.assertEqual(node_data, node.to_json())
-        self.assertEqual(node, self.manager.get_node_by_tuple(node_data.as_tuple()))
         self.assertEqual(node_data.as_tuple(), self.manager.get_node_tuple_by_hash(node_data.as_sha512()))
 
     @mock_bel_resources
@@ -837,10 +836,10 @@ class TestReconstituteNodeTuples(TemporaryCacheMixin):
     @mock_bel_resources
     def test_fusion_unspecified(self, mock):
         node = gene_fusion(
-            partner_5p=gene(namespace='HGNC', name='TMPRSS2'),
-            partner_3p=gene(namespace='HGNC', name='ERG'),
-            range_5p=missing_fusion_range(),
-            range_3p=missing_fusion_range()
+            partner5p=gene(namespace='HGNC', name='TMPRSS2'),
+            partner3p=gene(namespace='HGNC', name='ERG'),
+            range5p=missing_fusion_range(),
+            range3p=missing_fusion_range()
         )
         namespaces = {'HGNC': ['TMPRSS2', 'ERG']}
         self.help_reconstitute(node, namespaces, 1, 0)
@@ -1234,7 +1233,7 @@ class TestNoAddNode(TemporaryCacheMixin):
         graph.uncached_namespaces.add(dummy_url)
 
         node_data = protein(name=n(), namespace=dummy_namespace)
-        graph.add_node_from_data(node_data)
+        graph.add_entity(node_data)
 
         network = self.manager.insert_graph(graph)
         self.assertEqual(0, len(network.nodes.all()))
@@ -1251,10 +1250,10 @@ class TestNoAddNode(TemporaryCacheMixin):
         graph.uncached_namespaces.add(dummy_url)
 
         node_data = protein_fusion(
-            partner_3p=protein(namespace=dummy_namespace_name, name='AKT1'),
-            partner_5p=protein(namespace='HGNC', name='YFG'),
+            partner3p=protein(namespace=dummy_namespace_name, name='AKT1'),
+            partner5p=protein(namespace='HGNC', name='YFG'),
         )
-        graph.add_node_from_data(node_data)
+        graph.add_entity(node_data)
 
         make_dummy_namespaces(self.manager, graph, {'HGNC': ['YFG']})
         network = self.manager.insert_graph(graph)
@@ -1267,15 +1266,15 @@ class TestNoAddNode(TemporaryCacheMixin):
         dummy_namespace_name = n()
 
         node_data = protein_fusion(
-            partner_3p=protein(namespace='HGNC', name='YFG'),
-            partner_5p=protein(namespace=dummy_namespace_name, name='YFG'),
+            partner3p=protein(namespace='HGNC', name='YFG'),
+            partner5p=protein(namespace=dummy_namespace_name, name='YFG'),
         )
 
         graph = BELGraph(name='Test No Add Nodes', version='1.0.0')
         dummy_url = n()
         graph.namespace_url[dummy_namespace_name] = dummy_url
         graph.uncached_namespaces.add(dummy_url)
-        graph.add_node_from_data(node_data)
+        graph.add_entity(node_data)
         make_dummy_namespaces(self.manager, graph, {'HGNC': ['YFG']})
         network = self.manager.insert_graph(graph)
         self.assertEqual(0, len(network.nodes.all()))
@@ -1295,7 +1294,7 @@ class TestNoAddNode(TemporaryCacheMixin):
             pmod(name='dummy', namespace=dummy_namespace_name)
         ])
 
-        graph.add_node_from_data(node_data)
+        graph.add_entity(node_data)
 
         make_dummy_namespaces(self.manager, graph, {'HGNC': ['YFG']})
         network = self.manager.insert_graph(graph)
@@ -1317,7 +1316,7 @@ class TestNoAddNode(TemporaryCacheMixin):
             gmod(name='dummy', namespace=dummy_namespace_name)
         ])
 
-        graph.add_node_from_data(node_data)
+        graph.add_entity(node_data)
 
         make_dummy_namespaces(self.manager, graph, {'HGNC': ['YFG']})
         network = self.manager.insert_graph(graph)
@@ -1419,8 +1418,8 @@ class TestNoAddNode(TemporaryCacheMixin):
         rs1234 = gene(namespace=dbsnp, name='rs1234')
         rs1235 = gene(namespace=dbsnp, name='rs1235')
 
-        graph.add_node_from_data(rs1234)
-        graph.add_node_from_data(rs1235)
+        graph.add_entity(rs1234)
+        graph.add_entity(rs1235)
 
         rs1234_hash = rs1234.as_sha512()
         rs1235_hash = rs1235.as_sha512()
@@ -1453,7 +1452,7 @@ class TestEquivalentNodes(unittest.TestCase):
         graph = BELGraph()
 
         n1 = protein(namespace='HGNC', name='CD33', identifier='1659')
-        graph.add_node_from_data(n1)
+        graph.add_entity(n1)
 
         self.assertEqual({n1}, graph.get_equivalent_nodes(n1))
 
@@ -1463,12 +1462,12 @@ class TestEquivalentNodes(unittest.TestCase):
         graph = BELGraph()
 
         a = protein(namespace='HGNC', name='CD33')
-        graph.add_node_from_data(a)
+        graph.add_entity(a)
         self.assertTrue(graph._node_has_namespace_helper(a, 'HGNC'), msg='a should have HGNC namespace')
         self.assertFalse(graph._node_has_namespace_helper(a, 'HGNCID'), msg='a should not have HGNCID namespace yet')
 
         b = protein(namespace='HGNCID', identifier='1659')
-        graph.add_node_from_data(b)
+        graph.add_entity(b)
         self.assertFalse(graph._node_has_namespace_helper(b, 'HGNC'), msg='b should not have HGNC namespace yet')
         self.assertTrue(graph._node_has_namespace_helper(b, 'HGNCID'), msg='b should have HGNCID namespace')
 
@@ -1493,10 +1492,10 @@ class TestEquivalentNodes(unittest.TestCase):
         c = protein(namespace='C', identifier='1659')
         d = protein(namespace='HGNC', identifier='1659')
 
-        graph.add_node_from_data(a)
-        graph.add_node_from_data(b)
-        graph.add_node_from_data(c)
-        graph.add_node_from_data(d)
+        graph.add_entity(a)
+        graph.add_entity(b)
+        graph.add_entity(c)
+        graph.add_entity(d)
 
         graph.add_equivalence(a, b)
         graph.add_equivalence(b, c)

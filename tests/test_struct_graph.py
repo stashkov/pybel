@@ -6,8 +6,7 @@ from six import string_types
 
 from pybel import BELGraph
 from pybel.constants import (
-    CITATION_REFERENCE, CITATION_TYPE, CITATION_TYPE_PUBMED, FUNCTION, HAS_VARIANT, IDENTIFIER,
-    INCREASES, NAME, NAMESPACE, PROTEIN, unqualified_edge_code,
+    CITATION_NAME, CITATION_REFERENCE, CITATION_TYPE, CITATION_TYPE_PUBMED, HAS_VARIANT, INCREASES,
 )
 from pybel.dsl import *
 from pybel.examples import sialic_acid_graph
@@ -28,10 +27,10 @@ class TestStruct(unittest.TestCase):
 
         namespace, name = n(), n()
 
-        g.add_node_from_data(protein(namespace=namespace, name=name))
+        g.add_entity(protein(namespace=namespace, name=name))
         self.assertEqual(1, g.number_of_nodes())
 
-        g.add_node_from_data(protein(namespace=namespace, name=name))
+        g.add_entity(protein(namespace=namespace, name=name))
         self.assertEqual(1, g.number_of_nodes())
 
     def test_str_kwargs(self):
@@ -119,16 +118,15 @@ class TestDSL(unittest.TestCase):
     def test_add_robust_node(self):
         g = BELGraph()
         p = protein(name='yfg', namespace='test', identifier='1')
-        g.add_node_from_data(p)
+        g.add_entity(p)
         self.assertIn(p, g)
 
     def test_add_identified_node(self):
         """What happens when a node with only an identifier is added to a graph"""
         g = BELGraph()
         p = protein(namespace='test', identifier='1')
-        g.add_node_from_data(p)
+        g.add_entity(p)
         self.assertIn(p, g)
-
 
     def test_missing_information(self):
         """Checks that entity and abundance functions raise on missing name/identifier"""
@@ -207,19 +205,33 @@ class TestGetGraphProperties(unittest.TestCase):
         annotations = self.graph.get_edge_annotations(test_source, test_target, key)
         self.assertIsNone(annotations)
 
-
     def test_get_node_properties(self):
         test_name = n()
         test_identifier = n()
 
         node = protein(namespace='TEST', name=test_name, identifier=test_identifier)
-        self.graph.add_node_from_data(node)
+        self.graph.add_entity(node)
 
         self.assertIsNone(self.graph.get_node_description(node))
 
         test_description = n()
         self.graph.set_node_description(node, test_description)
         self.assertEqual(test_description, self.graph.get_node_description(node))
+
+
+class TestEdgeHash(unittest.TestCase):
+
+    def test_edge_hash(self):
+        ns, a_name, b_name, evidence, citation, author = [n() for _ in range(6)]
+        graph = BELGraph()
+
+        a = protein(ns, a_name)
+        b = protein(ns, b_name)
+        k1 = graph.add_qualified_edge(a, b, INCREASES, evidence, citation)
+        k2 = graph.add_qualified_edge(a, b, INCREASES, evidence, {
+            CITATION_TYPE: CITATION_TYPE_PUBMED, CITATION_REFERENCE: citation, CITATION_NAME: n()
+        })
+        self.assertEqual(k1, k2)
 
 
 if __name__ == '__main__':

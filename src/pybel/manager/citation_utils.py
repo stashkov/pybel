@@ -2,10 +2,10 @@
 
 import logging
 import re
-import time
 from datetime import datetime
 
 import requests
+import time
 from six.moves import zip_longest
 
 from .cache_manager import Manager

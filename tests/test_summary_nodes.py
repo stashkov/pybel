@@ -70,13 +70,13 @@ class TestSummary(unittest.TestCase):
         graph.namespace_url['HGNC'] = 'http://dummy'
 
         n = protein_fusion(
-            partner_5p=protein(name='A', namespace='HGNC'),
-            range_5p=fusion_range('p', 1, 15),
-            partner_3p=protein(name='B', namespace='HGNC'),
-            range_3p=fusion_range('p', 1, 100)
+            partner5p=protein(name='A', namespace='HGNC'),
+            range5p=fusion_range('p', 1, 15),
+            partner3p=protein(name='B', namespace='HGNC'),
+            range3p=fusion_range('p', 1, 100)
         )
 
-        graph.add_node_from_data(n)
+        graph.add_entity(n)
 
         result = {
             'A': 1,

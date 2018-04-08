@@ -95,9 +95,7 @@
 """
 
 from ..constants import *
-from ..dsl.edges import translocation
-from ..dsl.nodes import bioprocess, complex_abundance, protein, abundance, pathology
-from ..dsl.utils import entity
+from ..dsl.nodes import abundance, bioprocess, pathology
 from ..struct.graph import BELGraph
 
 __all__ = [

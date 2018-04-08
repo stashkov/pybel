@@ -25,13 +25,13 @@ PRODUCTS = 'products'
 # :data:`RANGE_3P`, and :data:`RANGE_5P`
 FUSION = 'fusion'
 #: The key specifying the identifier dictionary of the fusion's 3-Prime partner
-PARTNER_3P = 'partner_3p'
+PARTNER_3P = 'partner3p'
 #: The key specifying the identifier dictionary of the fusion's 5-Prime partner
-PARTNER_5P = 'partner_5p'
+PARTNER_5P = 'partner5p'
 #: The key specifying the range dictionary of the fusion's 3-Prime partner
-RANGE_3P = 'range_3p'
+RANGE_3P = 'range3p'
 #: The key specifying the range dictionary of the fusion's 5-Prime partner
-RANGE_5P = 'range_5p'
+RANGE_5P = 'range5p'
 
 FUSION_REFERENCE = 'reference'
 FUSION_START = 'left'

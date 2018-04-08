@@ -4,10 +4,10 @@
 
 import logging
 import re
-import time
 from collections import Counter, defaultdict
 
 import six
+import time
 from pyparsing import ParseException
 from sqlalchemy.exc import OperationalError
 from tqdm import tqdm

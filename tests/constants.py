@@ -14,9 +14,7 @@ from pybel.constants.bel_graph_keywords import *
 from pybel.constants.citation_data_keys import *
 from pybel.constants.edge_data_keys import *
 from pybel.constants.edge_modifiers import *
-from pybel.dsl.nodes import BaseEntity
 from pybel.constants.edge_types import *
-from pybel.constants.functions import REACTION
 from pybel.constants.misc import (
     BEL_DEFAULT_NAMESPACE, FRAUNHOFER_RESOURCES, OPENBEL_ANNOTATION_RESOURCES,
     OPENBEL_NAMESPACE_RESOURCES,
@@ -24,16 +22,20 @@ from pybel.constants.misc import (
 from pybel.constants.node_data_keys import *
 from pybel.dsl.edges import translocation
 from pybel.dsl.nodes import (
-    abundance, bioprocess, complex_abundance, composite_abundance, fragment, fusion_range, gene,
-    gene_fusion, gmod, hgvs, hgvs_reference, hgvs_unspecified, mirna, named_complex_abundance, pathology, pmod, protein,
-    protein_fusion, reaction, rna, rna_fusion,
+    BaseEntity, abundance, bioprocess, complex_abundance, composite_abundance, fragment,
+    fusion_range, gene, gene_fusion, gmod, hgvs, hgvs_reference, hgvs_unspecified, mirna, named_complex_abundance,
+    pathology, pmod, protein, protein_fusion, reaction, rna, rna_fusion,
 )
 from pybel.manager import Manager
 from pybel.parser.exc import *
 from pybel.parser.parse_bel import BelParser
-from pybel.utils import subdict_matches
+from pybel.utils import hash_edge, subdict_matches
 
 log = logging.getLogger(__name__)
+logging.getLogger('pybel.io').setLevel(logging.CRITICAL)
+logging.getLogger('pybel.parser').setLevel(logging.CRITICAL)
+logging.getLogger('pybel.manager').setLevel(logging.CRITICAL)
+logging.getLogger('pybel.resources').setLevel(logging.CRITICAL)
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 owl_dir_path = os.path.join(dir_path, 'owl')
@@ -109,10 +111,11 @@ def assertHasNode(self, node, graph, **kwargs):
     :param pybel.BELGraph graph:
     :param kwargs:
     """
-    self.assertIsInstance(node, BaseEntity)
+    self.assertIsInstance(node, BaseEntity, msg='not a BaseEntity: {} {}'.format(node.__class__.__name__, node))
 
     self.assertTrue(graph.has_node(node),
-                    msg='{} not found in graph. Actual contents:\n{}'.format(node, '\n'.join(map(str, graph))))
+                    msg='{} not found in graph. Actual contents:\n{}'.format(node, '\n'.join(
+                        node.as_bel() for node in graph)))
     if kwargs:
         missing = set(kwargs) - set(graph.node[node])
         self.assertFalse(missing, msg="Missing {} in node data".format(', '.join(sorted(missing))))
@@ -149,7 +152,7 @@ def any_subdict_matches(dict_of_dicts, query_dict):
     )
 
 
-def assertHasEdge(self, u, v, graph, permissive=True, **kwargs):
+def assertHasEdge(self, u, v, graph, **kwargs):
     """A helper function for checking if an edge with the given properties is contained within a graph
 
     :param unittest.TestCase self: A TestCase
@@ -160,23 +163,24 @@ def assertHasEdge(self, u, v, graph, permissive=True, **kwargs):
     self.assertIsInstance(u, BaseEntity)
     self.assertIsInstance(v, BaseEntity)
 
-    self.assertTrue(graph.has_edge(u, v), msg='Edge ({}, {}) not in graph'.format(u, v))
+    self.assertIn(u, graph, msg='source not found in graph: {}'.format(u))
+    self.assertIn(v, graph, msg='target not found in graph: {}'.format(v))
+    self.assertIn(v, graph[u], msg='edge ({}, {}) not in graph'.format(u, v))
 
-    if not kwargs:
-        return
+    self.assertIn(RELATION, kwargs)
+    relation = kwargs[RELATION]
 
-    if permissive:
-        matches = any_subdict_matches(graph[u][v], kwargs)
+    if relation in unqualified_edges:
+        self.assertTrue(graph.has_unqualified_edge(u, v, relation))
+
     else:
-        matches = any_dict_matches(graph[u][v], kwargs)
+        key = hash_edge(u, v, kwargs)
+        self.assertIn(key, graph[u][v],
+                      msg='could not find edge from {} to {}:\n{}'.format(u, v,
+                                                                          dumps(kwargs, indent=2, sort_keys=True)))
 
-    msg = 'No edge ({}, {}) with correct properties. expected:\n {}\nbut got:\n{}'.format(
-        u,
-        v,
-        dumps(kwargs, indent=2, sort_keys=True),
-        dumps(graph.edge[u][v], indent=2, sort_keys=True)
-    )
-    self.assertTrue(matches, msg=msg)
+        # equivalent to prior test
+        self.assertTrue(graph.has_edge(u, v, key))
 
 
 class TestGraphMixin(unittest.TestCase):
@@ -265,16 +269,21 @@ class TestTokenParserBase(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        """Makes a parser once"""
         cls.graph = BELGraph()
         cls.parser = BelParser(cls.graph, autostreamline=False)
 
     def setUp(self):
+        """Clears the parser before doing anything"""
         self.parser.clear()
 
-    def assertHasNode(self, member, **kwargs):
-        assertHasNode(self, member, self.graph, **kwargs)
+    def assertHasNode(self, member):
+        """Asserts a node exists in the raph"""
+        assertHasNode(self, member, self.graph, **member)
 
     def assertHasEdge(self, u, v, **kwargs):
+        """Asserts an edge exists between the two nodes"""
+        self.assertIn(RELATION, kwargs)
         assertHasEdge(self, u, v, self.graph, **kwargs)
 
     def assertNumberNodes(self, n):
@@ -282,18 +291,19 @@ class TestTokenParserBase(unittest.TestCase):
         :param int n: The number of expected nodes
         """
         self.assertEqual(n, self.graph.number_of_nodes(),
-                         msg='Wrong nodes:\n{}'.format('\n'.join(map(str, self.graph))))
+                         msg='Wrong number of nodes:\n{}'.format('\n'.join(map(str, self.graph))))
 
     def assertNumberEdges(self, n):
         """
         :param int n: The number of expected edges
         """
         self.assertEqual(n, self.graph.number_of_edges(),
-                         msg='Wrong edges:\n{}'.format('\n'.join(
+                         msg='Wrong number of edges:\n{}'.format('\n'.join(
                              str((str(u), str(v), str(key)[:10], str(data))) for u, v, key, data in
                              self.graph.edges(keys=True, data=True))))
 
     def add_default_provenance(self):
+        """Adds the default citation and evidence to the parser"""
         update_provenance(self.parser.control_parser)
 
     def help_test_parent_in_graph(self, node):
@@ -303,7 +313,7 @@ class TestTokenParserBase(unittest.TestCase):
         """
         parent = node.get_parent()
         self.assertIsNotNone(parent)
-        self.assertHasNode(parent, **parent)
+        self.assertHasNode(parent)
         self.assertHasEdge(parent, node, relation=HAS_VARIANT)
 
 
@@ -404,36 +414,36 @@ interleukin_23_complex = named_complex_abundance('GOCC', 'interleukin-23 complex
 hydrogen_peroxide = abundance('CHEBI', 'hydrogen peroxide')
 
 tmprss2_erg_gene_fusion = gene_fusion(
-    partner_5p=gene('HGNC', 'TMPRSS2'),
-    range_5p=fusion_range('c', 1, 79),
-    partner_3p=gene('HGNC', 'ERG'),
-    range_3p=fusion_range('c', 312, 5034)
+    partner5p=gene('HGNC', 'TMPRSS2'),
+    range5p=fusion_range('c', 1, 79),
+    partner3p=gene('HGNC', 'ERG'),
+    range3p=fusion_range('c', 312, 5034)
 )
 
 bcr_jak2_gene_fusion = gene_fusion(
-    partner_5p=gene('HGNC', 'BCR'),
-    range_5p=fusion_range('c', '?', 1875),
-    partner_3p=gene('HGNC', 'JAK2'),
-    range_3p=fusion_range('c', 2626, '?')
+    partner5p=gene('HGNC', 'BCR'),
+    range5p=fusion_range('c', '?', 1875),
+    partner3p=gene('HGNC', 'JAK2'),
+    range3p=fusion_range('c', 2626, '?')
 )
 
 chchd4_aifm1_gene_fusion = gene_fusion(
-    partner_5p=gene('HGNC', 'CHCHD4'),
-    partner_3p=gene('HGNC', 'AIFM1')
+    partner5p=gene('HGNC', 'CHCHD4'),
+    partner3p=gene('HGNC', 'AIFM1')
 )
 
 tmprss2_erg_protein_fusion = protein_fusion(
-    partner_5p=protein('HGNC', 'TMPRSS2'),
-    range_5p=fusion_range('p', 1, 79),
-    partner_3p=protein('HGNC', 'ERG'),
-    range_3p=fusion_range('p', 312, 5034)
+    partner5p=protein('HGNC', 'TMPRSS2'),
+    range5p=fusion_range('p', 1, 79),
+    partner3p=protein('HGNC', 'ERG'),
+    range3p=fusion_range('p', 312, 5034)
 )
 
 bcr_jak2_protein_fusion = protein_fusion(
-    partner_5p=protein('HGNC', 'BCR'),
-    range_5p=fusion_range('p', '?', 1875),
-    partner_3p=protein('HGNC', 'JAK2'),
-    range_3p=fusion_range('p', 2626, '?')
+    partner5p=protein('HGNC', 'BCR'),
+    range5p=fusion_range('p', '?', 1875),
+    partner3p=protein('HGNC', 'JAK2'),
+    range3p=fusion_range('p', 2626, '?')
 )
 
 chchd4_aifm1_protein_fusion = protein_fusion(
@@ -442,26 +452,26 @@ chchd4_aifm1_protein_fusion = protein_fusion(
 )
 
 bcr_jak2_rna_fusion = rna_fusion(
-    partner_5p=rna('HGNC', 'BCR'),
-    range_5p=fusion_range('r', '?', 1875),
-    partner_3p=rna('HGNC', 'JAK2'),
-    range_3p=fusion_range('r', 2626, '?')
+    partner5p=rna('HGNC', 'BCR'),
+    range5p=fusion_range('r', '?', 1875),
+    partner3p=rna('HGNC', 'JAK2'),
+    range3p=fusion_range('r', 2626, '?')
 )
 
 chchd4_aifm1_rna_fusion = rna_fusion(
-    partner_5p=rna('HGNC', 'CHCHD4'),
-    partner_3p=rna('HGNC', 'AIFM1')
+    partner5p=rna('HGNC', 'CHCHD4'),
+    partner3p=rna('HGNC', 'AIFM1')
 )
 
 tmprss2_erg_rna_fusion = rna_fusion(
-    partner_5p=rna('HGNC', 'TMPRSS2'),
-    range_5p=fusion_range('r', 1, 79),
-    partner_3p=rna('HGNC', 'ERG'),
-    range_3p=fusion_range('r', 312, 5034)
+    partner5p=rna('HGNC', 'TMPRSS2'),
+    range5p=fusion_range('r', 1, 79),
+    partner3p=rna('HGNC', 'ERG'),
+    range3p=fusion_range('r', 312, 5034)
 )
 tmprss2_erg_rna_fusion_unspecified = rna_fusion(
-    partner_5p=rna('HGNC', 'TMPRSS2'),
-    partner_3p=rna('HGNC', 'ERG')
+    partner5p=rna('HGNC', 'TMPRSS2'),
+    partner3p=rna('HGNC', 'ERG')
 )
 
 BEL_THOROUGH_NODES = {
@@ -508,16 +518,22 @@ BEL_THOROUGH_NODES = {
     protein('HGNC', 'CFTR', variants=hgvs('p.Gly576Ala')),
     akt1_rna,
     rna('HGNC', 'AKT1', variants=[hgvs('c.1521_1523delCTT'), hgvs('p.Phe508del')]),
-    complex_abundance([gene('HGNC', 'NCF1'), protein('HGNC', 'HBP1')]),
+    gene('HGNC', 'NCF1'),
+    complex_abundance([
+        gene('HGNC', 'NCF1'),
+        protein('HGNC', 'HBP1')
+    ]),
     protein('HGNC', 'HBP1'),
-
     complex_abundance([protein('HGNC', 'FOS'), protein('HGNC', 'JUN')]),
     protein('HGNC', 'FOS'),
     protein('HGNC', 'JUN'),
     rna('HGNC', 'CFTR', variants=hgvs('r.1521_1523delcuu')),
     rna('HGNC', 'CFTR'),
     rna('HGNC', 'CFTR', variants=hgvs('r.1653_1655delcuu')),
-    composite_abundance([interleukin_23_complex, il6]),
+    composite_abundance([
+        interleukin_23_complex,
+        il6
+    ]),
     il6,
     bioprocess('GOBP', 'cell cycle arrest'),
     hydrogen_peroxide,
@@ -563,7 +579,11 @@ BEL_THOROUGH_NODES = {
     protein('HGNC', 'AKT1', variants=pmod(namespace='TESTNS2', name='PhosRes', code='Ser', position=473)),
     protein('HGNC', 'HRAS', variants=pmod('Palm')),
     bioprocess('GOBP', 'apoptotic process'),
-    composite_abundance([abundance('TESTNS2', 'Abeta_42'), protein('HGNC', 'CASP8'), protein('HGNC', 'FADD')]),
+    composite_abundance([
+        abundance('TESTNS2', 'Abeta_42'),
+        protein('HGNC', 'CASP8'),
+        protein('HGNC', 'FADD')
+    ]),
     reaction(
         reactants=protein('HGNC', 'CDK5R1'),
         products=protein('HGNC', 'CDK5')
@@ -600,46 +620,41 @@ citation_2 = {
 evidence_1 = "Evidence 1"
 dummy_evidence = 'These are mostly made up'
 
+bel_thorough_graph = BELGraph()
+bel_thorough_graph.add_qualified_edge(
+    oxygen_atom,
+    akt_methylated,
+    relation=INCREASES,
+    evidence=dummy_evidence,
+    citation=citation_1,
+    annotations={
+        'TESTAN1': {'1': True, '2': True},
+        'TestRegex': {'9000': True}
+    }
+)
+bel_thorough_graph.add_has_variant(akt1_gene, akt_methylated)
+bel_thorough_graph.add_qualified_edge(
+    akt1_gene,
+    oxygen_atom,
+    evidence=dummy_evidence,
+    citation=citation_1,
+    relation=DECREASES,
+    subject_modifier={LOCATION: {NAMESPACE: 'GOCC', NAME: 'intracellular'}},
+    object_modifier={LOCATION: {NAMESPACE: 'GOCC', NAME: 'intracellular'}},
+)
+bel_thorough_graph.add_has_variant(akt1_gene, gene('HGNC', 'AKT1', variants=hgvs('p.Phe508del')))
+bel_thorough_graph.add_has_variant(akt1_gene, gene('HGNC', 'AKT1', variants=hgvs('c.308G>A')))
+bel_thorough_graph.add_has_variant(akt1_gene, gene('HGNC', 'AKT1',
+                                                   variants=[hgvs('c.1521_1523delCTT'), hgvs('c.308G>A'),
+                                                             hgvs('p.Phe508del')]))
+bel_thorough_graph.add_transcription(akt1_gene, akt1_rna)
 BEL_THOROUGH_EDGES = [
-    (oxygen_atom, akt_methylated, {
-        EVIDENCE: dummy_evidence,
-        CITATION: citation_1,
-        RELATION: INCREASES,
-        ANNOTATIONS: {
-            'TESTAN1': {'1': True, '2': True},
-            'TestRegex': {'9000': True}
-        }
-    }),
-    (akt1_gene, akt_methylated, {
-        RELATION: HAS_VARIANT,
-    }),
-    (akt1_gene, oxygen_atom, {
-        EVIDENCE: dummy_evidence,
-        CITATION: citation_1,
-        RELATION: DECREASES, SUBJECT: {LOCATION: {NAMESPACE: 'GOCC', NAME: 'intracellular'}},
-        OBJECT: {LOCATION: {NAMESPACE: 'GOCC', NAME: 'intracellular'}},
-    }),
-    (akt1_gene, gene('HGNC', 'AKT1', variants=hgvs('p.Phe508del')), {
-        RELATION: HAS_VARIANT,
-    }),
-    (akt1_gene, gene('HGNC', 'AKT1', variants=hgvs('c.308G>A')), {
-        RELATION: HAS_VARIANT,
-    }),
-    (akt1_gene,
-     gene('HGNC', 'AKT1', variants=[hgvs('c.1521_1523delCTT'), hgvs('c.308G>A'), hgvs('p.Phe508del')]), {
-         RELATION: HAS_VARIANT,
-     }),
-    (akt1_gene, akt1_rna, {
-        EVIDENCE: 'These were all explicitly stated in the BEL 2.0 Specification',
-        CITATION: citation_2,
-        RELATION: TRANSCRIBED_TO,
-    }),
     (gene('HGNC', 'AKT1', variants=hgvs('p.Phe508del')), AKT1, {
         EVIDENCE: dummy_evidence,
         CITATION: citation_1,
         RELATION: DIRECTLY_DECREASES,
     }),
-    (AKT1, protein('HGNC', 'AKT1', variants=gmod('Ph', 'Ser', 473)), {
+    (AKT1, protein('HGNC', 'AKT1', variants=pmod('Ph', 'Ser', 473)), {
         RELATION: HAS_VARIANT,
     }),
     (AKT1, protein('HGNC', 'AKT1', variants=hgvs('p.C40*')), {
@@ -809,23 +824,6 @@ BEL_THOROUGH_EDGES = [
     (cftr, protein('HGNC', 'CFTR', variants=hgvs('p.Gly576Ala')), {
         RELATION: HAS_VARIANT,
     }),
-    (protein('HGNC', 'CFTR', variants=hgvs('?')), pathology('MESHD', 'Adenocarcinoma'), {
-        EVIDENCE: dummy_evidence,
-        CITATION: citation_1,
-        RELATION: INCREASES,
-    }),
-    (protein('HGNC', 'MIA', variants=fragment(5, 20)), named_complex_abundance('GOCC', 'interleukin-23 complex'), {
-        EVIDENCE: dummy_evidence,
-        CITATION: citation_1,
-        RELATION: INCREASES,
-        OBJECT: {
-            MODIFIER: TRANSLOCATION,
-            EFFECT: {
-                FROM_LOC: {NAMESPACE: 'GOCC', NAME: 'intracellular'},
-                TO_LOC: {NAMESPACE: 'GOCC', NAME: 'extracellular space'}
-            }
-        },
-    }),
     (mia, protein('HGNC', 'MIA', variants=fragment(5, 20)), {
         RELATION: HAS_VARIANT,
     }),
@@ -837,6 +835,82 @@ BEL_THOROUGH_EDGES = [
     }),
     (mia, protein('HGNC', 'MIA', variants=fragment(description='55kD')), {
         RELATION: HAS_VARIANT,
+    }),
+    (akt1_rna, rna('HGNC', 'AKT1', variants=[hgvs('c.1521_1523delCTT'), hgvs('p.Phe508del')]), {
+        RELATION: HAS_VARIANT,
+    }),
+    (akt1_rna, AKT1, {
+        RELATION: TRANSLATED_TO,
+    }),
+    (gene('HGNC', 'APP'), gene('HGNC', 'APP', variants=hgvs('c.275341G>C')), {
+        RELATION: HAS_VARIANT,
+    }),
+    (complex_abundance([protein('HGNC', 'F3'), protein('HGNC', 'F7')]), protein('HGNC', 'F3'), {
+        RELATION: HAS_COMPONENT,
+    }),
+    (complex_abundance([protein('HGNC', 'F3'), protein('HGNC', 'F7')]), protein('HGNC', 'F7'), {
+        RELATION: HAS_COMPONENT,
+    }),
+    (protein('HGNC', 'GSK3B'), protein('HGNC', 'GSK3B', variants=pmod('Ph', 'Ser', 9)), {
+        RELATION: HAS_VARIANT,
+    }),
+    (pathology('MESHD', 'Psoriasis'), pathology('MESHD', 'Skin Diseases'), {
+        RELATION: IS_A,
+    }),
+
+    (complex_abundance([gene('HGNC', 'NCF1'), protein('HGNC', 'HBP1')]), protein('HGNC', 'HBP1'), {
+        RELATION: HAS_COMPONENT,
+    }),
+    (complex_abundance([gene('HGNC', 'NCF1'), protein('HGNC', 'HBP1')]), gene('HGNC', 'NCF1'), {
+        RELATION: HAS_COMPONENT,
+    }),
+
+    (complex_abundance([protein('HGNC', 'FOS'), protein('HGNC', 'JUN')]), protein('HGNC', 'FOS'), {
+        RELATION: HAS_COMPONENT,
+    }),
+    (complex_abundance([protein('HGNC', 'FOS'), protein('HGNC', 'JUN')]), protein('HGNC', 'JUN'), {
+        RELATION: HAS_COMPONENT,
+    }),
+    (rna('HGNC', 'CFTR'), rna('HGNC', 'CFTR', variants=hgvs('r.1521_1523delcuu')), {
+        RELATION: HAS_VARIANT,
+    }),
+    (rna('HGNC', 'CFTR'), rna('HGNC', 'CFTR', variants=hgvs('r.1653_1655delcuu')), {
+        RELATION: HAS_VARIANT,
+    }),
+    (composite_abundance([interleukin_23_complex, il6]), il6, {
+        RELATION: HAS_COMPONENT,
+    }),
+    (composite_abundance([interleukin_23_complex, il6]), interleukin_23_complex, {
+        RELATION: HAS_COMPONENT,
+    }),
+    (protein('HGNC', 'CFTR', variants=hgvs('?')), pathology('MESHD', 'Adenocarcinoma'), {
+        EVIDENCE: dummy_evidence,
+        CITATION: citation_1,
+        RELATION: INCREASES,
+    }),
+    (rna('HGNC', 'AKT1', variants=[hgvs('c.1521_1523delCTT'), hgvs('p.Phe508del')]),
+     tmprss2_erg_rna_fusion, {
+         EVIDENCE: dummy_evidence,
+         CITATION: citation_1,
+         RELATION: DIRECTLY_INCREASES,
+     }),
+    (rna_fusion(rna('HGNC', 'TMPRSS2'), rna('HGNC', 'ERG')),
+     complex_abundance([gene('HGNC', 'NCF1'), protein('HGNC', 'HBP1')]), {
+         EVIDENCE: dummy_evidence,
+         CITATION: citation_1,
+         RELATION: INCREASES,
+     }),
+    (protein('HGNC', 'MIA', variants=fragment(5, 20)), named_complex_abundance('GOCC', 'interleukin-23 complex'), {
+        EVIDENCE: dummy_evidence,
+        CITATION: citation_1,
+        RELATION: INCREASES,
+        OBJECT: {
+            MODIFIER: TRANSLOCATION,
+            EFFECT: {
+                FROM_LOC: {NAMESPACE: 'GOCC', NAME: 'intracellular'},
+                TO_LOC: {NAMESPACE: 'GOCC', NAME: 'extracellular space'}
+            }
+        },
     }),
     (protein('HGNC', 'MIA', variants=fragment(1, '?')), EGFR, {
         EVIDENCE: dummy_evidence,
@@ -861,32 +935,6 @@ BEL_THOROUGH_EDGES = [
             }
         },
     }),
-    (akt1_rna, rna('HGNC', 'AKT1', variants=[hgvs('c.1521_1523delCTT'), hgvs('p.Phe508del')]), {
-        RELATION: HAS_VARIANT,
-    }),
-    (akt1_rna, AKT1, {
-        EVIDENCE: 'These were all explicitly stated in the BEL 2.0 Specification',
-        CITATION: citation_2,
-        RELATION: TRANSLATED_TO,
-    }),
-    (rna('HGNC', 'AKT1', variants=[hgvs('c.1521_1523delCTT'), hgvs('p.Phe508del')]),
-     tmprss2_erg_rna_fusion, {
-         EVIDENCE: dummy_evidence,
-         CITATION: citation_1,
-         RELATION: DIRECTLY_INCREASES,
-     }),
-    (rna_fusion(rna('HGNC', 'TMPRSS2'), rna('HGNC', 'ERG')),
-     complex_abundance([gene('HGNC', 'NCF1'), protein('HGNC', 'HBP1')]), {
-         EVIDENCE: dummy_evidence,
-         CITATION: citation_1,
-         RELATION: INCREASES,
-     }),
-    (complex_abundance([gene('HGNC', 'NCF1'), protein('HGNC', 'HBP1')]), protein('HGNC', 'HBP1'), {
-        RELATION: HAS_COMPONENT,
-    }),
-    (complex_abundance([gene('HGNC', 'NCF1'), protein('HGNC', 'HBP1')]), gene('HGNC', 'NCF1'), {
-        RELATION: HAS_COMPONENT,
-    }),
     (rna_fusion(rna('HGNC', 'CHCHD4'), rna('HGNC', 'AIFM1'), ),
      complex_abundance([protein('HGNC', 'FOS'), protein('HGNC', 'JUN')]),
      {
@@ -894,24 +942,6 @@ BEL_THOROUGH_EDGES = [
          CITATION: citation_1,
          RELATION: INCREASES,
      }),
-    (complex_abundance([protein('HGNC', 'FOS'), protein('HGNC', 'JUN')]), protein('HGNC', 'FOS'), {
-        RELATION: HAS_COMPONENT,
-    }),
-    (complex_abundance([protein('HGNC', 'FOS'), protein('HGNC', 'JUN')]), protein('HGNC', 'JUN'), {
-        RELATION: HAS_COMPONENT,
-    }),
-    (rna('HGNC', 'CFTR'), rna('HGNC', 'CFTR', variants=hgvs('r.1521_1523delcuu')), {
-        RELATION: HAS_VARIANT,
-    }),
-    (rna('HGNC', 'CFTR'), rna('HGNC', 'CFTR', variants=hgvs('r.1653_1655delcuu')), {
-        RELATION: HAS_VARIANT,
-    }),
-    (composite_abundance([interleukin_23_complex, il6]), il6, {
-        RELATION: HAS_COMPONENT,
-    }),
-    (composite_abundance([interleukin_23_complex, il6]), interleukin_23_complex, {
-        RELATION: HAS_COMPONENT,
-    }),
     (composite_abundance([interleukin_23_complex, il6]),
      bioprocess('GOBP', 'cell cycle arrest'), {
          EVIDENCE: dummy_evidence,
@@ -942,15 +972,7 @@ BEL_THOROUGH_EDGES = [
          CITATION: citation_2,
          RELATION: CAUSES_NO_CHANGE,
      }),
-    (gene('HGNC', 'APP'), gene('HGNC', 'APP', variants=hgvs('c.275341G>C')), {
-        RELATION: HAS_VARIANT,
-    }),
-    (complex_abundance([protein('HGNC', 'F3'), protein('HGNC', 'F7')]), protein('HGNC', 'F3'), {
-        RELATION: HAS_COMPONENT,
-    }),
-    (complex_abundance([protein('HGNC', 'F3'), protein('HGNC', 'F7')]), protein('HGNC', 'F7'), {
-        RELATION: HAS_COMPONENT,
-    }),
+
     (complex_abundance([protein('HGNC', 'F3'), protein('HGNC', 'F7')]), protein('HGNC', 'F9'), {
         EVIDENCE: 'These were all explicitly stated in the BEL 2.0 Specification',
         CITATION: citation_2,
@@ -964,106 +986,95 @@ BEL_THOROUGH_EDGES = [
         RELATION: POSITIVE_CORRELATION,
         OBJECT: {MODIFIER: ACTIVITY, EFFECT: {NAMESPACE: BEL_DEFAULT_NAMESPACE, NAME: 'kin'}},
     }),
-    (protein('HGNC', 'GSK3B'), protein('HGNC', 'GSK3B', variants=pmod('Ph', 'Ser', 9)), {
-        RELATION: HAS_VARIANT,
-    }),
+
     (protein('HGNC', 'GSK3B'), protein('HGNC', 'GSK3B', variants=pmod('Ph', 'Ser', 9)), {
         EVIDENCE: 'These were all explicitly stated in the BEL 2.0 Specification',
         CITATION: citation_2,
         RELATION: POSITIVE_CORRELATION,
         SUBJECT: {MODIFIER: ACTIVITY, EFFECT: {NAMESPACE: BEL_DEFAULT_NAMESPACE, NAME: 'kin'}},
     }),
-    (pathology('MESHD', 'Psoriasis'), pathology('MESHD', 'Skin Diseases'), {
-        EVIDENCE: 'These were all explicitly stated in the BEL 2.0 Specification',
-        CITATION: citation_2,
-        RELATION: IS_A,
-    }),
-    ((
-         REACTION,
-         (
-             abundance('CHEBI', '(3S)-3-hydroxy-3-methylglutaryl-CoA'),
-             abundance('CHEBI', 'NADPH'),
-             abundance('CHEBI', 'hydron')
-         ),
-         (
-             abundance('CHEBI', 'NADP(+)'),
-             abundance('CHEBI', 'mevalonate')
-         )
-     ),
+
+    (reaction(
+        reactants=(
+            abundance('CHEBI', '(3S)-3-hydroxy-3-methylglutaryl-CoA'),
+            abundance('CHEBI', 'NADPH'),
+            abundance('CHEBI', 'hydron')
+        ),
+        products=(
+            abundance('CHEBI', 'NADP(+)'),
+            abundance('CHEBI', 'mevalonate')
+        )
+    ),
      abundance('CHEBI', '(3S)-3-hydroxy-3-methylglutaryl-CoA'), {
          RELATION: HAS_REACTANT,
      }),
-    ((
-         REACTION,
-         (
-             abundance('CHEBI', '(3S)-3-hydroxy-3-methylglutaryl-CoA'),
-             abundance('CHEBI', 'NADPH'),
-             abundance('CHEBI', 'hydron')
-         ),
-         (
-             abundance('CHEBI', 'NADP(+)'),
-             abundance('CHEBI', 'mevalonate')
-         )
-     ),
+    (reaction(
+        reactants=(
+            abundance('CHEBI', '(3S)-3-hydroxy-3-methylglutaryl-CoA'),
+            abundance('CHEBI', 'NADPH'),
+            abundance('CHEBI', 'hydron')
+        ),
+        products=(
+            abundance('CHEBI', 'NADP(+)'),
+            abundance('CHEBI', 'mevalonate')
+        )
+    ),
      abundance('CHEBI', 'NADPH'), {
          RELATION: HAS_REACTANT,
      }),
-    ((
-         REACTION,
-         (
-             abundance('CHEBI', '(3S)-3-hydroxy-3-methylglutaryl-CoA'),
-             abundance('CHEBI', 'NADPH'),
-             abundance('CHEBI', 'hydron')
-         ),
-         (
-             abundance('CHEBI', 'NADP(+)'),
-             abundance('CHEBI', 'mevalonate')
-         )
-     ),
-     abundance('CHEBI', 'hydron'), {
-         RELATION: HAS_REACTANT,
-     }),
-    ((
-         REACTION,
-         (
-             abundance('CHEBI', '(3S)-3-hydroxy-3-methylglutaryl-CoA'),
-             abundance('CHEBI', 'NADPH'),
-             abundance('CHEBI', 'hydron')
-         ),
-         (
-             abundance('CHEBI', 'NADP(+)'),
-             abundance('CHEBI', 'mevalonate'))
-     ),
+    (
+        reaction(
+            reactants=(
+                abundance('CHEBI', '(3S)-3-hydroxy-3-methylglutaryl-CoA'),
+                abundance('CHEBI', 'NADPH'),
+                abundance('CHEBI', 'hydron')
+            ),
+            products=(
+                abundance('CHEBI', 'NADP(+)'),
+                abundance('CHEBI', 'mevalonate')
+            )
+        ),
+        abundance('CHEBI', 'hydron'), {
+            RELATION: HAS_REACTANT,
+        }),
+    (reaction(
+        reactants=(
+            abundance('CHEBI', '(3S)-3-hydroxy-3-methylglutaryl-CoA'),
+            abundance('CHEBI', 'NADPH'),
+            abundance('CHEBI', 'hydron')
+        ),
+        products=(
+            abundance('CHEBI', 'NADP(+)'),
+            abundance('CHEBI', 'mevalonate'))
+    ),
      abundance('CHEBI', 'mevalonate'), {
          RELATION: HAS_PRODUCT,
      }),
-    ((
-         REACTION,
-         (
-             abundance('CHEBI', '(3S)-3-hydroxy-3-methylglutaryl-CoA'),
-             abundance('CHEBI', 'NADPH'),
-             abundance('CHEBI', 'hydron')
-         ),
-         (
-             abundance('CHEBI', 'NADP(+)'),
-             abundance('CHEBI', 'mevalonate')
-         )
-     ),
+    (reaction(
+        reactants=(
+            abundance('CHEBI', '(3S)-3-hydroxy-3-methylglutaryl-CoA'),
+            abundance('CHEBI', 'NADPH'),
+            abundance('CHEBI', 'hydron')
+        ),
+        products=(
+            abundance('CHEBI', 'NADP(+)'),
+            abundance('CHEBI', 'mevalonate')
+        )
+    ),
      abundance('CHEBI', 'NADP(+)'), {
          RELATION: HAS_PRODUCT,
      }),
-    ((
-         REACTION,
-         (
-             abundance('CHEBI', '(3S)-3-hydroxy-3-methylglutaryl-CoA'),
-             abundance('CHEBI', 'NADPH'),
-             abundance('CHEBI', 'hydron')
-         ),
-         (
-             abundance('CHEBI', 'NADP(+)'),
-             abundance('CHEBI', 'mevalonate')
-         )
-     ),
+    (reaction(
+        reactants=(
+            abundance('CHEBI', '(3S)-3-hydroxy-3-methylglutaryl-CoA'),
+            abundance('CHEBI', 'NADPH'),
+            abundance('CHEBI', 'hydron')
+        ),
+        products=(
+            abundance('CHEBI', 'NADP(+)'),
+            abundance('CHEBI', 'mevalonate')
+        )
+    ),
      bioprocess('GOBP', 'cholesterol biosynthetic process'),
      {
          EVIDENCE: 'These were all explicitly stated in the BEL 2.0 Specification',
@@ -1091,8 +1102,6 @@ BEL_THOROUGH_EDGES = [
     }),
     (gene('HGNC', 'ARRDC2'), gene('HGNC', 'ARRDC3'), {
         RELATION: EQUIVALENT_TO,
-        CITATION: citation_2,
-        EVIDENCE: 'These were all explicitly stated in the BEL 2.0 Specification'
     }),
     (gene('HGNC', 'ARRDC3'), gene('HGNC', 'ARRDC2'), {
         RELATION: EQUIVALENT_TO,
@@ -1249,7 +1258,16 @@ class BelReconstitutionMixin(TestGraphMixin):
                 d[CITATION] = d[CITATION].copy()
                 del d[CITATION][CITATION_NAME]
 
-            assertHasEdge(self, u, v, graph, permissive=True, **d)
+            if d[RELATION] in unqualified_edges and CITATION in d:
+                log.warning('shouldnt have citation with unqualified edge!')
+
+                del d[CITATION]
+                del d[EVIDENCE]
+
+            assertHasEdge(self, u, v, graph, **d)
+
+        for u, v, d in bel_thorough_graph.edges(data=True):
+            assertHasEdge(self, u, v, graph, **d)
 
     def bel_slushy_reconstituted(self, graph, check_metadata=True, check_warnings=True):
         """Check that slushy.bel was loaded properly

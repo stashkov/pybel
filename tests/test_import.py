@@ -3,11 +3,10 @@
 import logging
 import os
 import tempfile
-import time
 import unittest
 from pathlib import Path
 
-import networkx as nx
+import time
 from six import BytesIO, StringIO
 
 from pybel import (
@@ -16,40 +15,29 @@ from pybel import (
     to_json_file, to_jsons, to_ndex, to_pickle, to_sif,
 )
 from pybel.constants import *
-from pybel.dsl import gene
+from pybel.dsl import gene, hgvs
 from pybel.examples import sialic_acid_graph
 from pybel.io.exc import ImportVersionWarning, import_version_message_fmt
 from pybel.io.ndex_utils import NDEX_PASSWORD, NDEX_USERNAME
 from pybel.parser import BelParser
 from pybel.parser.exc import *
 from pybel.struct.summary import get_syntax_errors
-from pybel.utils import hash_node
 from tests.constants import (
-    AKT1, BelReconstitutionMixin, CASP8, EGFR, FADD, TemporaryCacheClsMixin, TestTokenParserBase, citation_1,
-    evidence_1, test_bel_isolated, test_bel_misordered, test_bel_simple, test_bel_slushy, test_bel_thorough,
-    test_citation_dict, test_evidence_text, test_set_evidence,
+    AKT1, BelReconstitutionMixin, CASP8, EGFR, FADD, TemporaryCacheClsMixin,
+    TestTokenParserBase, citation_1, evidence_1, test_bel_isolated, test_bel_misordered, test_bel_simple,
+    test_bel_slushy, test_bel_thorough, test_citation_dict, test_evidence_text, test_set_evidence,
+    tmprss2_erg_gene_fusion,
 )
 from tests.mocks import mock_bel_resources
 
 logging.getLogger('requests').setLevel(logging.WARNING)
+logging.getLogger('pybel.io').setLevel(logging.WARNING)
+logging.getLogger('pybel.parser').setLevel(logging.ERROR)
+logging.getLogger('pybel.resources').setLevel(logging.WARNING)
+logging.getLogger('pybel.manager').setLevel(logging.WARNING)
 log = logging.getLogger(__name__)
 
 testan1 = '1'
-
-
-def do_remapping(original, reconstituted):
-    """Remaps nodes to use the reconstitution tests
-    
-    :param BELGraph original: The original bel graph 
-    :param BELGraph reconstituted: The reconstituted BEL graph from CX input/output
-    """
-    node_mapping = dict(enumerate(sorted(original, key=hash_node)))
-    try:
-        nx.relabel.relabel_nodes(reconstituted, node_mapping, copy=False)
-    except KeyError as e:
-        missing_nodes = set(node_mapping) - set(reconstituted)
-        log.exception('missing %s', [node_mapping[n] for n in missing_nodes])
-        raise e
 
 
 class TestExampleInterchange(unittest.TestCase):
@@ -58,38 +46,63 @@ class TestExampleInterchange(unittest.TestCase):
 
         :type graph: pybel.BELGraph
         """
-        self.assertEqual(set(sialic_acid_graph), set(graph))
+        self.assertEqual(set(sorted(sialic_acid_graph)), set(sorted(graph)), msg='nodes not equal')
+        self.assertEqual(set(sialic_acid_graph.edges()), set(graph.edges()), msg='edges not equal')
 
-        self.assertEqual(set(sialic_acid_graph.edges()), set(graph.edges()))
-
-    def test_example_bytes(self):
+    def test_bytes(self):
+        """Tests bytes interchange for the Sialic Acid Graph"""
         graph_bytes = to_bytes(sialic_acid_graph)
         graph = from_bytes(graph_bytes)
         self.help_test_equal(graph)
 
-    def test_example_pickle(self):
+    def test_pickle(self):
+        """Tests pickle interchange for the Sialic Acid Graph"""
         bio = BytesIO()
         to_pickle(sialic_acid_graph, bio)
         bio.seek(0)
         graph = from_pickle(bio)
         self.help_test_equal(graph)
 
-    def test_thorough_json(self):
+    def test_json(self):
+        """Tests Node-Link JSON interchange for the Sialic Acid Graph"""
         graph_json_dict = to_json(sialic_acid_graph)
         graph = from_json(graph_json_dict)
         self.help_test_equal(graph)
 
-    def test_thorough_jsons(self):
+    def test_jsons(self):
+        """Tests Node-Link JSON string interchange for the Sialic Acid Graph"""
         graph_json_str = to_jsons(sialic_acid_graph)
         graph = from_jsons(graph_json_str)
         self.help_test_equal(graph)
 
-    def test_thorough_json_file(self):
+    def test_json_file(self):
+        """Tests Node-Link JSON file interchange for the Sialic Acid Graph"""
         sio = StringIO()
         to_json_file(sialic_acid_graph, sio)
         sio.seek(0)
         graph = from_json_file(sio)
         self.help_test_equal(graph)
+
+    def test_cx(self):
+        cx = to_cx(sialic_acid_graph)
+        graph = from_cx(cx)
+        self.help_test_equal(graph)
+
+    def test_fusion_cx(self):
+        """Checks fusions can make the round-trip to and from CX"""
+        graph = BELGraph()
+        graph.add_entity(tmprss2_erg_gene_fusion)
+        cx = to_cx(graph)
+        reconstituted = from_cx(cx)
+        self.assertEqual(set(graph), set(reconstituted))
+
+    def test_variant_cx(self):
+        """Checks variants can make the round-trip to and from CX"""
+        graph = BELGraph()
+        graph.add_entity(gene('HGNC', 'AKT1', variants=[hgvs('c.1521_1523delCTT'), hgvs('c.308G>A')]))
+        cx = to_cx(graph)
+        reconstituted = from_cx(cx)
+        self.assertEqual(set(graph), set(reconstituted))
 
 
 class TestInterchange(TemporaryCacheClsMixin, BelReconstitutionMixin):
@@ -196,19 +209,11 @@ class TestInterchange(TemporaryCacheClsMixin, BelReconstitutionMixin):
         os.remove(gsea_path)
 
     def test_thorough_cx(self):
-        graph_cx_json_dict = to_cx(self.thorough_graph)
-        reconstituted = from_cx(graph_cx_json_dict)
-
-        do_remapping(self.thorough_graph, reconstituted)
-
+        reconstituted = from_cx(to_cx(self.thorough_graph))
         self.bel_thorough_reconstituted(reconstituted, check_warnings=False)
 
     def test_thorough_cxs(self):
-        graph_cx_str = to_cx_jsons(self.thorough_graph)
-        reconstituted = from_cx_jsons(graph_cx_str)
-
-        do_remapping(self.thorough_graph, reconstituted)
-
+        reconstituted = from_cx_jsons(to_cx_jsons(self.thorough_graph))
         self.bel_thorough_reconstituted(reconstituted, check_warnings=False)
 
     @unittest.skipUnless(NDEX_USERNAME in os.environ and NDEX_PASSWORD in os.environ, 'Need NDEx credentials')
@@ -217,9 +222,6 @@ class TestInterchange(TemporaryCacheClsMixin, BelReconstitutionMixin):
         network_id = to_ndex(self.thorough_graph)
         time.sleep(10)
         reconstituted = from_ndex(network_id)
-
-        do_remapping(self.thorough_graph, reconstituted)
-
         self.bel_thorough_reconstituted(reconstituted, check_warnings=False, check_citation_name=False)
 
     def test_thorough_upgrade(self):
@@ -256,16 +258,10 @@ class TestInterchange(TemporaryCacheClsMixin, BelReconstitutionMixin):
 
     def test_slushy_cx(self):
         reconstituted = from_cx(to_cx(self.slushy_graph))
-
-        do_remapping(self.slushy_graph, reconstituted)
-
         self.bel_slushy_reconstituted(reconstituted)
 
     def test_slushy_cxs(self):
         reconstituted = from_cx_jsons(to_cx_jsons(self.slushy_graph))
-
-        do_remapping(self.slushy_graph, reconstituted)
-
         self.bel_slushy_reconstituted(reconstituted)
 
     def test_simple_compile(self):
@@ -273,11 +269,7 @@ class TestInterchange(TemporaryCacheClsMixin, BelReconstitutionMixin):
 
     def test_simple_cx(self):
         """Tests the CX input/output on test_bel.bel"""
-        graph_cx_json = to_cx(self.simple_graph)
-
-        reconstituted = from_cx(graph_cx_json)
-        do_remapping(self.simple_graph, reconstituted)
-
+        reconstituted = from_cx(to_cx(self.simple_graph))
         self.bel_simple_reconstituted(reconstituted)
 
     def test_isolated_compile(self):
@@ -401,12 +393,13 @@ class TestFull(TestTokenParserBase):
         self.assertEqual(1, self.parser.graph.number_of_edges())
 
         kwargs = {
+            RELATION: INCREASES,
+            EVIDENCE: test_evidence_text,
+            CITATION: test_citation_dict,
             ANNOTATIONS: {
                 'TestAnnotation1': {'A': True},
                 'TestAnnotation2': {'X': True},
             },
-            EVIDENCE: test_evidence_text,
-            CITATION: test_citation_dict
         }
         self.assertHasEdge(test_node_1, test_node_2, **kwargs)
 
@@ -434,7 +427,9 @@ class TestFull(TestTokenParserBase):
                 'TestAnnotation1': {'A': True, 'B': True},
                 'TestAnnotation2': {'X': True}
             },
-            CITATION: test_citation_dict
+            CITATION: test_citation_dict,
+            EVIDENCE: test_evidence_text,
+            RELATION: INCREASES,
         }
         self.assertHasEdge(test_node_1, test_node_2, **kwargs)
 
@@ -464,7 +459,9 @@ class TestFull(TestTokenParserBase):
                 'TestAnnotation2': {'X': True},
                 'TestAnnotation3': {'D': True, 'E': True}
             },
-            CITATION: test_citation_dict
+            CITATION: test_citation_dict,
+            EVIDENCE: test_evidence_text,
+            RELATION: INCREASES,
         }
         self.assertHasEdge(test_node_1, test_node_2, **kwargs)
 

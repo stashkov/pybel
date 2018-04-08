@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 
 import logging
-import time
 
 import requests
+import time
 from requests.compat import urlparse
 from requests_file import FileAdapter
 

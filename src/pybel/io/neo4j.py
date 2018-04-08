@@ -8,7 +8,7 @@ This module contains IO functions for outputting BEL graphs to a Neo4J graph dat
 
 """
 
-from ..canonicalize import calculate_canonical_name, node_to_bel
+from ..canonicalize import calculate_canonical_name
 from ..constants import FUNCTION, NAME, PYBEL_CONTEXT_TAG, RELATION
 from ..utils import flatten_dict
 
@@ -39,15 +39,15 @@ def to_neo4j(graph, neo_connection, context=None):
     tx = neo_connection.begin()
 
     node_map = {}
-    for node, data in graph.nodes(data=True):
-        node_type = data[FUNCTION]
-        attrs = {k: v for k, v in data.items() if k not in {FUNCTION, NAME}}
-        attrs['name'] = calculate_canonical_name(graph, node)
+    for node in graph:
+        node_type = node[FUNCTION]
+        attrs = {k: v for k, v in node.items() if k not in {FUNCTION, NAME}}
+        attrs['name'] = calculate_canonical_name(node)
 
-        if NAME in data:
-            attrs['identifier'] = data[NAME]
+        if NAME in node:
+            attrs['label'] = node[NAME]
 
-        node_map[node] = py2neo.Node(node_type, bel=node_to_bel(data), **attrs)
+        node_map[node] = py2neo.Node(node_type, bel=node.as_bel(), **attrs)
 
         tx.create(node_map[node])
 

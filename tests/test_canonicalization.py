@@ -19,8 +19,8 @@ class TestCanonicalizeEdge(unittest.TestCase):
         self.graph = BELGraph()
         self.u = protein(name='u', namespace='TEST')
         self.v = protein(name='v', namespace='TEST')
-        self.graph.add_node_from_data(self.u)
-        self.graph.add_node_from_data(self.v)
+        self.graph.add_entity(self.u)
+        self.graph.add_entity(self.v)
 
     def add_edge(self, subject_modifier=None, object_modifier=None, annotations=None):
         """Wraps adding a sample edge

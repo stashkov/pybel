@@ -14,6 +14,7 @@ A general use for a node predicate is to use the built-in :func:`filter` in code
 """
 
 from collections import Iterable
+
 from .node_predicates import keep_node_permissive
 
 __all__ = [
