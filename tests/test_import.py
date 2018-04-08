@@ -110,35 +110,12 @@ class TestInterchange(TemporaryCacheClsMixin, BelReconstitutionMixin):
     def setUpClass(cls):
         super(TestInterchange, cls).setUpClass()
 
-        @mock_bel_resources
-        def get_thorough_graph(mock):
-            return from_path(test_bel_thorough, manager=cls.manager, allow_nested=True)
-
-        cls.thorough_graph = get_thorough_graph()
-
-        @mock_bel_resources
-        def get_slushy_graph(mock):
-            return from_path(test_bel_slushy, manager=cls.manager)
-
-        cls.slushy_graph = get_slushy_graph()
-
-        @mock_bel_resources
-        def get_simple_graph(mock_get):
-            return from_url(Path(test_bel_simple).as_uri(), manager=cls.manager)
-
-        cls.simple_graph = get_simple_graph()
-
-        @mock_bel_resources
-        def get_isolated_graph(mock_get):
-            return from_path(test_bel_isolated, manager=cls.manager)
-
-        cls.isolated_graph = get_isolated_graph()
-
-        @mock_bel_resources
-        def get_misordered_graph(mock_get):
-            return from_path(test_bel_misordered, manager=cls.manager, citation_clearing=False)
-
-        cls.misordered_graph = get_misordered_graph()
+        with mock_bel_resources:
+            cls.thorough_graph = from_path(test_bel_thorough, manager=cls.manager, allow_nested=True)
+            cls.slushy_graph = from_path(test_bel_slushy, manager=cls.manager)
+            cls.simple_graph = from_url(Path(test_bel_simple).as_uri(), manager=cls.manager)
+            cls.isolated_graph = from_path(test_bel_isolated, manager=cls.manager)
+            cls.misordered_graph = from_path(test_bel_misordered, manager=cls.manager, citation_clearing=False)
 
     def test_thorough_path(self):
         self.bel_thorough_reconstituted(self.thorough_graph)
