@@ -34,7 +34,7 @@ NDEX_USERNAME = 'NDEX_USERNAME'
 NDEX_PASSWORD = 'NDEX_PASSWORD'
 
 
-def build_ndex_client(username=None, password=None, debug=False):
+def build_ndex_client(username=None, password=None, debug=False, **kwargs):
     """Builds a NDEx client by checking environmental variables.
 
     It has been requested that the :code:`ndex-client` has this functionality built-in by this GitHub 
@@ -44,7 +44,7 @@ def build_ndex_client(username=None, password=None, debug=False):
     :param str password: NDEx password
     :param bool debug: If true, turn on NDEx client debugging
     :return: An NDEx client
-    :rtype: Ndex
+    :rtype: ndex2.client.Ndex2
     """
     from ndex2.client import Ndex2 as Ndex
 
@@ -56,7 +56,7 @@ def build_ndex_client(username=None, password=None, debug=False):
         password = os.environ[NDEX_PASSWORD]
         log.info('got NDEx password from environment')
 
-    return Ndex(username=username, password=password, debug=debug)
+    return Ndex(username=username, password=password, debug=debug, **kwargs)
 
 
 def cx_to_ndex(cx, username=None, password=None, debug=False):
@@ -98,7 +98,28 @@ def to_ndex(graph, username=None, password=None, debug=False):
     return cx_to_ndex(cx, username=username, password=password, debug=debug)
 
 
-def from_ndex(network_id, username=None, password=None, debug=False):
+def cx_from_ndex(network_id, username=None, password=None, debug=False, **kwargs):
+    """Gets CX JSON from NDEx
+
+    :param str network_id: The UUID assigned to the network by NDEx
+    :param str username: NDEx username
+    :param str password: NDEx password
+    :param bool debug: If true, turn on NDEx client debugging
+    :return: A JSON object with CX schema
+    :rtype: list
+
+    Example Usage:
+
+    >>> from pybel import from_ndex
+    >>> network_id = '1709e6f3-04a1-11e7-aba2-0ac135e8bacf'
+    >>> graph = from_ndex(network_id)
+    """
+    ndex = build_ndex_client(username=username, password=password, debug=debug, **kwargs)
+    res = ndex.get_network_as_cx_stream(network_id)
+    return res.json()
+
+
+def from_ndex(network_id, username=None, password=None, debug=False, **kwargs):
     """Downloads a BEL Graph from NDEx
 
     .. warning:: This function only will work for CX documents that have been originally exported from PyBEL
@@ -116,8 +137,5 @@ def from_ndex(network_id, username=None, password=None, debug=False):
     >>> network_id = '1709e6f3-04a1-11e7-aba2-0ac135e8bacf'
     >>> graph = from_ndex(network_id)
     """
-    ndex = build_ndex_client(username, password, debug)
-    res = ndex.get_network_as_cx_stream(network_id)
-    cx = res.json()
-    graph = from_cx(cx)
-    return graph
+    cx = cx_from_ndex(network_id, username=username, password=password, debug=debug, **kwargs)
+    return from_cx(cx)
