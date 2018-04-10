@@ -5,7 +5,6 @@
 import codecs  # To use a consistent encoding
 import os
 import re
-import sys
 
 import setuptools
 
@@ -22,7 +21,6 @@ CLASSIFIERS = [
     'License :: OSI Approved :: Apache Software License',
     'Operating System :: OS Independent',
     'Programming Language :: Python',
-    'Programming Language :: Python :: 2.7',
     'Programming Language :: Python :: 3.4',
     'Programming Language :: Python :: 3.5',
     'Programming Language :: Python :: 3.6',
@@ -38,11 +36,6 @@ INSTALL_REQUIRES = [
     'six',
     'tqdm',
 ]
-
-if sys.version_info < (3, ):
-    INSTALL_REQUIRES.append('configparser')
-    INSTALL_REQUIRES.append('enum34')  # Only necessary for NDEx?
-    INSTALL_REQUIRES.append('functools32')
 
 EXTRAS_REQUIRE = {
     'indra': ['indra'],
