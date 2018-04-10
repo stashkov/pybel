@@ -204,7 +204,7 @@ class BaseAbundance(BaseEntity):
         """
         :rtype: str
         """
-        return self.identifier if self.identifier else self.name
+        return self.name if self.name else self.identifier
 
     def _get_ns_arg(self):
         """Gets the qualified name for this entity
