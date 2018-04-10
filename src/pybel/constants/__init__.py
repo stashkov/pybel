@@ -12,6 +12,7 @@ By default, PyBEL loads its configuration from ``~/.config/pybel/config.json``. 
 :data:`pybel.constants.config`.
 """
 
+from .about import *
 from .bel_graph_keywords import *
 from .bel_keywords import *
 from .citation_data_keys import *

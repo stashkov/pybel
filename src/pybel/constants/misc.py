@@ -9,8 +9,6 @@ from .bel_keywords import *
 
 log = getLogger(__name__)
 
-VERSION = '0.11.2-dev'
-
 #: The last PyBEL version where the graph data definition changed
 PYBEL_MINIMUM_IMPORT_VERSION = 0, 11, 0
 
