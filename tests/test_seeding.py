@@ -137,22 +137,16 @@ class TestSeeding(TemporaryCacheClsMixin, TestGraphMixin):
 
         graph = graph_from_edges(edges)
 
-        self.assertEqual(4, graph.number_of_nodes(), msg='Nodes: {}'.format(graph.nodes()))
-
-        trem2_copy = deepcopy(trem2)
-        del trem2_copy[IDENTIFIER]
         syk_copy = deepcopy(syk)
         del syk_copy[IDENTIFIER]
         shp2_copy = deepcopy(shp2)
         del shp2_copy[IDENTIFIER]
-        cd33_copy = deepcopy(cd33)
-        del cd33_copy[IDENTIFIER]
         cd33_phosphorylated_copy = deepcopy(cd33_phosphorylated)
         del cd33_phosphorylated_copy[IDENTIFIER]
 
         self.assertIn(cd33_phosphorylated_copy, graph)
-        self.assertIn(cd33_copy, graph)
         self.assertIn(syk_copy, graph)
         self.assertIn(shp2_copy, graph)
 
-        self.assertEqual(3, graph.number_of_edges())
+        self.assertEqual(3, graph.number_of_nodes(), msg='Nodes:\n{}'.format('\n'.join(map(str, graph))))
+        self.assertEqual(2, graph.number_of_edges())
