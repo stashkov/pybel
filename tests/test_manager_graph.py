@@ -215,23 +215,23 @@ class TestQuery(TemporaryCacheMixin):
     def test_query_node_bel_1(self):
         rv = self.manager.query_nodes(bel='p(HGNC:FOS)')
         self.assertEqual(1, len(rv))
-        self.assertEqual(fos, rv[0].to_json())
+        self.assertEqual(fos, rv[0].as_bel())
 
     def test_query_node_bel_2(self):
         rv = self.manager.query_nodes(bel='p(HGNC:JUN)')
         self.assertEqual(1, len(rv))
-        self.assertEqual(jun, rv[0].to_json())
+        self.assertEqual(jun, rv[0].as_bel())
 
     def test_query_node_namespace_wildcard(self):
         rv = self.manager.query_nodes(namespace='HG%')
         self.assertEqual(2, len(rv))
-        self.assertTrue(any(x.to_json() == fos for x in rv))
-        self.assertTrue(any(x.to_json() == jun for x in rv))
+        self.assertTrue(any(x.as_bel() == fos for x in rv))
+        self.assertTrue(any(x.as_bel() == jun for x in rv))
 
     def test_query_node_name_wildcard(self):
         rv = self.manager.query_nodes(name='%J%')
         self.assertEqual(1, len(rv), 1)
-        self.assertEqual(jun, rv[0].to_json())
+        self.assertEqual(jun, rv[0].as_bel())
 
     def test_query_node_type(self):
         rv = self.manager.query_nodes(type=PROTEIN)
@@ -665,32 +665,30 @@ class TestAddNodeFromData(unittest.TestCase):
 class TestReconstituteNodeTuples(TemporaryCacheMixin):
     """Tests the ability to go from PyBEL to relational database"""
 
-    def help_reconstitute(self, node_data, namespace_dict, number_nodes, number_edges):
+    def help_reconstitute(self, node, namespace_dict, number_nodes, number_edges):
         """Helps test the round-trip conversion from PyBEL data dictionary to node model, then back to PyBEL node
         data dictionary and PyBEL node tuple.
 
-        :param BaseEntity node_data: PyBEL node data dictionary
+        :param BaseEntity node: PyBEL node data dictionary
         :param namespace_dict:
         :param int number_nodes:
         :param int number_edges:
         """
-        self.assertIsInstance(node_data, BaseEntity, msg='{}'.format(node_data.__class__.__name__))
+        self.assertIsInstance(node, BaseEntity, msg='{} {}'.format(node.__class__.__name__, node))
 
         graph = BELGraph(name='test', version='0.0.0')
         make_dummy_namespaces(self.manager, graph, namespace_dict)
 
-        graph.add_entity(node_data)
+        graph.add_entity(node)
 
         self.manager.insert_graph(graph, store_parts=True)
         self.assertEqual(number_nodes, self.manager.count_nodes(),
                          msg='Wrong nodes: {}'.format('\n'.join(map(str, graph))))
         self.assertEqual(number_edges, self.manager.count_edges(), msg='Wrong edges: {}'.format(graph.edges()))
 
-        node = self.manager.get_or_create_node(graph, node_data)
-        self.manager.session.commit()
-
-        self.assertEqual(node_data, node.to_json())
-        self.assertEqual(node_data.as_tuple(), self.manager.get_node_tuple_by_hash(node_data.as_sha512()))
+        r_node = self.manager.get_node_by_hash(node.as_sha512())
+        self.assertIsNotNone(r_node)
+        self.assertEqual(node, r_node.as_bel(), msg='reconstitution not working properly')
 
     @mock_bel_resources
     def test_simple(self, mock):

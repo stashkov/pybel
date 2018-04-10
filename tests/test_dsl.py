@@ -7,8 +7,8 @@ import unittest
 
 from pybel.canonicalize import fusion_range_to_bel, variant_to_bel
 from pybel.constants import (
-    ABUNDANCE, BEL_DEFAULT_NAMESPACE, BIOPROCESS, COMPLEX, COMPOSITE, FRAGMENT, GENE, PATHOLOGY, PMOD, PROTEIN,
-    REACTION, RNA,
+    ABUNDANCE, BEL_DEFAULT_NAMESPACE, BIOPROCESS, COMPLEX, COMPOSITE, FRAGMENT, FUNCTION, GENE, IDENTIFIER, NAME,
+    NAMESPACE, PATHOLOGY, PMOD, PROTEIN, REACTION, RNA,
 )
 from pybel.dsl import (
     abundance, bioprocess, complex_abundance, composite_abundance, fragment, fusion_range, gene, gene_fusion,
@@ -16,9 +16,9 @@ from pybel.dsl import (
     named_complex_abundance, pathology, pmod, protein, protein_deletion, protein_substitution, reaction, rna,
     rna_fusion,
 )
-from pybel.dsl.exc import PyBELDSLException
+from pybel.dsl.exc import InferCentralDogmaException, PyBELDSLException
 from pybel.dsl.utils import entity
-from pybel.utils import ensure_quotes, hash_node
+from pybel.utils import ensure_quotes
 from tests.utils import n
 
 
@@ -50,7 +50,6 @@ class TestDSL(unittest.TestCase):
 
         self.assertEqual(node_tuple, node.as_tuple())
         self.assertEqual(hash(node_tuple), hash(node))
-        self.assertEqual(hash_node(node_tuple), node.as_sha512())
 
     def test_complex_with_name(self):
         """Tests a what happens with a named complex
@@ -73,7 +72,6 @@ class TestDSL(unittest.TestCase):
 
         self.assertEqual(node_tuple, nine_one_one.as_tuple())
         self.assertEqual(hash(node_tuple), hash(nine_one_one))
-        self.assertEqual(hash_node(node_tuple), nine_one_one.as_sha512())
 
     def test_missing_parent(self):
         app = protein(name='APP', namespace='HGNC')
@@ -85,11 +83,79 @@ class TestDSL(unittest.TestCase):
         self.assertEqual('p(HGNC:APP)', app.as_bel())
 
 
+class TestInferCentralDogma(unittest.TestCase):
+    def test_protein(self):
+        namespace, name = n(), n()
+        p = protein(namespace=namespace, name=name)
+        r = p.get_rna()
+        self.assertIsInstance(r, rna)
+        self.assertIn(FUNCTION, r)
+        self.assertEqual(RNA, r[FUNCTION])
+        self.assertIn(NAMESPACE, r)
+        self.assertEqual(namespace, r[NAMESPACE])
+        self.assertIn(NAME, r)
+        self.assertEqual(name, r[NAME])
+        self.assertNotIn(IDENTIFIER, r)
+
+    def test_protein_identifier(self):
+        namespace, name, identifier = n(), n(), n()
+        p = protein(namespace=namespace, name=name, identifier=identifier)
+        r = p.get_rna()
+        self.assertIsInstance(r, rna)
+        self.assertIn(FUNCTION, r)
+        self.assertEqual(RNA, r[FUNCTION])
+        self.assertIn(NAMESPACE, r)
+        self.assertEqual(namespace, r[NAMESPACE])
+        self.assertIn(NAME, r)
+        self.assertEqual(name, r[NAME])
+        self.assertIn(IDENTIFIER, r)
+        self.assertEqual(identifier, r[IDENTIFIER])
+
+    def test_protein_variants(self):
+        namespace, name, hgvs_variant = n(), n(), n()
+        p = protein(namespace=namespace, name=name, variants=hgvs(hgvs_variant))
+        with self.assertRaises(InferCentralDogmaException):
+            p.get_rna()
+
+    def test_rna(self):
+        namespace, name = n(), n()
+        p = rna(namespace=namespace, name=name)
+        r = p.get_gene()
+        self.assertIsInstance(r, gene)
+        self.assertIn(FUNCTION, r)
+        self.assertEqual(GENE, r[FUNCTION])
+        self.assertIn(NAMESPACE, r)
+        self.assertEqual(namespace, r[NAMESPACE])
+        self.assertIn(NAME, r)
+        self.assertEqual(name, r[NAME])
+        self.assertNotIn(IDENTIFIER, r)
+
+    def test_mirna(self):
+        namespace, name = n(), n()
+        p = mirna(namespace=namespace, name=name)
+        r = p.get_gene()
+        self.assertIsInstance(r, gene)
+        self.assertIn(FUNCTION, r)
+        self.assertEqual(GENE, r[FUNCTION])
+        self.assertIn(NAMESPACE, r)
+        self.assertEqual(namespace, r[NAMESPACE])
+        self.assertIn(NAME, r)
+        self.assertEqual(name, r[NAME])
+        self.assertNotIn(IDENTIFIER, r)
+
+    def test_rna_variants(self):
+        namespace, name, hgvs_variant = n(), n(), n()
+        p = rna(namespace=namespace, name=name, variants=hgvs(hgvs_variant))
+        with self.assertRaises(InferCentralDogmaException):
+            p.get_gene()
+
+
 class TestSort(unittest.TestCase):
     def test_sort_variants(self):
         a, b, c = hgvs('c.1521_1523delCTT'), hgvs('c.308G>A'), hgvs('p.Phe508del')
         for l in itt.permutations([a, b, c]):
             self.assertEqual([a, b, c], sorted(l))
+
 
 class TestCanonicalize(unittest.TestCase):
     def test_variant_to_bel_key_error(self):

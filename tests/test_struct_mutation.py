@@ -4,13 +4,17 @@ import unittest
 
 from pybel import BELGraph
 from pybel.constants import ANNOTATIONS, INCREASES
-from pybel.dsl import protein
+from pybel.dsl import gene, protein, rna
 from pybel.examples.statin_example import (
     avorastatin, ec_11134, ec_11188, fluvastatin, hmgcr, hmgcr_inhibitor, mevinolinic_acid, statin, statin_graph,
     synthetic_statin,
 )
-from pybel.struct.mutation import infer_child_relations, strip_annotations
+from pybel.struct.mutation import infer_central_dogma, infer_child_relations, prune_central_dogma, strip_annotations
 from pybel.struct.mutation.transfer import iter_children
+
+trem2_gene = gene(namespace='HGNC', name='TREM2')
+trem2_rna = rna(namespace='HGNC', name='TREM2')
+trem2_protein = protein(namespace='HGNC', name='TREM2')
 
 
 class TestMutations(unittest.TestCase):
@@ -110,6 +114,26 @@ class TestTransfer(unittest.TestCase):
         infer_child_relations(graph, hmgcr_inhibitor)
         self.assertEqual(9, graph.number_of_nodes())
         self.assertEqual(18, graph.number_of_edges(), msg='edges should not be added again')
+
+
+class TestProcessing(unittest.TestCase):
+    def test_infer_on_sialic_acid_example(self):
+        graph = BELGraph()
+        graph.add_entity(trem2_protein)
+
+        self.assertIn(trem2_protein, graph)
+        self.assertNotIn(trem2_gene, graph)
+        self.assertNotIn(trem2_rna, graph)
+
+        infer_central_dogma(graph)
+
+        self.assertIn(trem2_gene, graph)
+        self.assertIn(trem2_rna, graph)
+
+        prune_central_dogma(graph)
+
+        self.assertNotIn(trem2_gene, graph)
+        self.assertNotIn(trem2_rna, graph)
 
 
 if __name__ == '__main__':

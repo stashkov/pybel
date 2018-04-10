@@ -100,7 +100,7 @@ you have any problems working with the database, try removing it with one of the
 PyBEL will build a new database and populate it on the next run.
 """
 
-from . import canonicalize, constants, examples, examples, io, struct
+from . import canonicalize, constants, examples, io, struct
 from .canonicalize import *
 from .examples import *
 from .io import *

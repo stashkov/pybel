@@ -42,19 +42,6 @@ class QueryManager(LookupManager):
         """
         return self.session.query(func.count(Node.id)).scalar()
 
-    def get_node_tuple_by_hash(self, node_hash):
-        """Looks up a node by the hash and returns the corresponding PyBEL node tuple
-
-        :param str node_hash: The hash of a PyBEL node tuple from :func:`pybel.utils.hash_node`
-        :rtype: Optional[tuple]
-        """
-        node = self.get_node_by_hash(node_hash)
-
-        if node is None:
-            return
-
-        return node.to_tuple()
-
     def query_nodes(self, bel=None, type=None, namespace=None, name=None):
         """Builds and runs a query over all nodes in the PyBEL cache.
 

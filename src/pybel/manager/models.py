@@ -19,6 +19,7 @@ from ..dsl import (
     rna_fusion,
 )
 from ..io.gpickle import from_bytes, to_bytes
+from ..utils import hash_edge
 
 __all__ = [
     'Base',
@@ -525,7 +526,7 @@ class Node(Base):
 
         return result
 
-    def to_json(self, include_id=False, include_hash=False):
+    def as_bel(self, include_id=False, include_hash=False):
         """Serializes this node as a PyBEL node data dictionary
 
         :param bool include_id: Include the database identifier?
@@ -540,11 +541,11 @@ class Node(Base):
 
         if self.type == REACTION:
             reactants = [
-                edge.target.to_json()
+                edge.target.as_bel()
                 for edge in self.out_edges.filter(Edge.relation == HAS_REACTANT)
             ]
             products = [
-                edge.target.to_json()
+                edge.target.as_bel()
                 for edge in self.out_edges.filter(Edge.relation == HAS_PRODUCT)
             ]
             result = reaction(
@@ -556,7 +557,7 @@ class Node(Base):
 
         if self.type == COMPOSITE:
             result = composite_abundance(members=[
-                edge.target.to_json()
+                edge.target.as_bel()
                 for edge in self.out_edges.filter(Edge.relation == HAS_COMPONENT)
             ])
             self._update_to_json_rv(result, include_id=include_id, include_hash=include_hash)
@@ -564,7 +565,7 @@ class Node(Base):
 
         if self.type == COMPLEX or (self.type == COMPLEX and not self.namespace_entry):
             members = [
-                edge.target.to_json()
+                edge.target.as_bel()
                 for edge in self.out_edges.filter(Edge.relation == HAS_COMPONENT)
             ]
 
@@ -989,8 +990,8 @@ class Edge(Base):
         :rtype: dict
         """
         result = {
-            'source': self.source.to_json(),
-            'target': self.target.to_json(),
+            'source': self.source.as_bel(),
+            'target': self.target.as_bel(),
             'data': self.get_data_json(),
         }
 
@@ -1006,14 +1007,15 @@ class Edge(Base):
         """Inserts this edge into a BEL Graph
 
         :param pybel.BELGraph graph: A BEL graph
+        :return: The hash of the edge added
+        :rtype: str
         """
-        u = self.source.to_json()
-        v = self.target.to_json()
-
-        graph.add_entity(u)
-        graph.add_entity(v)
-
-        graph.add_edge(u, v, attr_dict=self.get_data_json())
+        u = self.source.as_bel()
+        v = self.target.as_bel()
+        data = self.get_data_json()
+        key = hash_edge(u, v, data)
+        graph.add_edge(u, v, key=key, **data)
+        return key
 
 
 class Property(Base):

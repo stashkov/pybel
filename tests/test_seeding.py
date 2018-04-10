@@ -1,17 +1,35 @@
 # -*- coding: utf-8 -*-
 
-from pybel.examples import sialic_acid_graph
+import unittest
+from copy import deepcopy
+
 from pybel import BELGraph
+from pybel.constants import IDENTIFIER
+from pybel.examples import sialic_acid_graph
 from pybel.examples.sialic_acid_example import cd33, cd33_phosphorylated, shp2, syk, trem2
 from pybel.manager.models import Edge, Namespace, Network
-from pybel.constants import IDENTIFIER
 from pybel.manager.query_manager import graph_from_edges
 from tests.constants import TemporaryCacheClsMixin, TestGraphMixin
 from tests.mocks import mock_bel_resources
-from copy import deepcopy
 
 chebi_url = 'https://arty.scai.fraunhofer.de/artifactory/bel/namespace/chebi/chebi-20170725.belns'
 hgnc_url = 'https://arty.scai.fraunhofer.de/artifactory/bel/namespace/hgnc-human-genes/hgnc-human-genes-20170725.belns'
+
+trem2_copy = deepcopy(trem2)
+del trem2_copy[IDENTIFIER]
+
+syk_copy = deepcopy(syk)
+del syk_copy[IDENTIFIER]
+
+shp2_copy = deepcopy(shp2)
+del shp2_copy[IDENTIFIER]
+
+
+class TestNodes(unittest.TestCase):
+    def test_identifier_missing(self):
+        self.assertNotIn(IDENTIFIER, trem2_copy)
+        self.assertEqual('p(HGNC:TREM2)', trem2_copy.as_bel())
+
 
 class TestSeeding(TemporaryCacheClsMixin, TestGraphMixin):
     """This module tests the seeding functions in the query manager"""
@@ -74,14 +92,26 @@ class TestSeeding(TemporaryCacheClsMixin, TestGraphMixin):
             self.manager.query_induction([])
 
     def test_seed_by_induction(self):
+        trem2_copy = deepcopy(trem2)
+        del trem2_copy[IDENTIFIER]
+
+        syk_copy = deepcopy(syk)
+        del syk_copy[IDENTIFIER]
+
+        shp2_copy = deepcopy(shp2)
+        del shp2_copy[IDENTIFIER]
+
         shp2_model = self.manager.get_node_by_dict(shp2)
         self.assertIsNotNone(shp2_model)
+        self.assertEqual(shp2_copy, shp2_model.as_bel())
 
         syk_model = self.manager.get_node_by_dict(syk)
         self.assertIsNotNone(syk_model)
+        self.assertEqual(syk_copy, syk_model.as_bel())
 
         trem2_model = self.manager.get_node_by_dict(trem2)
         self.assertIsNotNone(trem2_model)
+        self.assertEqual(trem2_copy, trem2_model.as_bel())
 
         edges = self.manager.query_induction([shp2_model, syk_model, trem2_model])
         self.assertEqual(2, len(edges))
@@ -92,13 +122,6 @@ class TestSeeding(TemporaryCacheClsMixin, TestGraphMixin):
         self.assertIsInstance(graph, BELGraph)
         self.assertEqual(2, graph.number_of_edges())
         self.assertEqual(3, graph.number_of_nodes(), msg='Nodes: {}'.format(graph.nodes()))
-
-        trem2_copy = deepcopy(trem2)
-        del trem2_copy[IDENTIFIER]
-        syk_copy = deepcopy(syk)
-        del syk_copy[IDENTIFIER]
-        shp2_copy = deepcopy(shp2)
-        del shp2_copy[IDENTIFIER]
 
         self.assertHasNode(graph, trem2_copy)
         self.assertHasNode(graph, syk_copy)

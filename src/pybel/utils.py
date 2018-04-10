@@ -219,19 +219,10 @@ def hash_dump(data):
     return _digest_bytes(json.dumps(data, ensure_ascii=False, sort_keys=True).encode('utf-8'))
 
 
-def _hash_tuple(t):
-    tuple_bytes = pickle.dumps(t)
-    return _digest_bytes(tuple_bytes)
 
 
-def hash_node(node_tuple):
-    """Converts a PyBEL node tuple to a hash
 
-    :param tuple node_tuple: A BEL node
-    :return: A hashed version of the node tuple using :func:`hashlib.sha512` hash of the binary pickle dump
-    :rtype: str
-    """
-    return _hash_tuple(node_tuple)
+
 
 
 def _hash_citation(data):

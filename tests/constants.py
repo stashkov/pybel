@@ -4,6 +4,7 @@ import logging
 import os
 import tempfile
 import unittest
+from collections import Counter
 from json import dumps
 from pathlib import Path
 
@@ -1251,7 +1252,14 @@ class BelReconstitutionMixin(TestGraphMixin):
             self.assertEqual({'TESTAN1', 'TESTAN2'}, set(graph.annotation_list))
             self.assertEqual({'TestRegex'}, set(graph.annotation_pattern))
 
-        self.assertEqual(set(BEL_THOROUGH_NODES), set(graph))
+        self.assertEqual(
+            {node.as_bel() for node in BEL_THOROUGH_NODES},
+            {node.as_bel() for node in graph}
+        )
+        self.assertEqual(Counter(sorted(BEL_THOROUGH_NODES)), Counter(sorted(graph)))
+
+        self.assertCountEqual(BEL_THOROUGH_NODES, graph)
+        self.assertEqual(sorted(BEL_THOROUGH_NODES), sorted(graph))
 
         # FIXME
         # self.assertEqual(set((u, v) for u, v, _ in e), set(g.edges()))

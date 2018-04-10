@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
 
 import abc
+import hashlib
+import pickle
 
 import six
 
-from .exc import PyBELDSLException
+from .exc import PyBELDSLException, InferCentralDogmaException
 from .utils import entity
 from ..constants import *
-from ..utils import ensure_quotes, hash_node
+from ..utils import ensure_quotes
 
 __all__ = [
     'BaseEntity',
@@ -42,14 +44,77 @@ __all__ = [
 
 
 def _sort_by_bel(elements):
-    return sorted(elements, key=lambda e: e.as_bel())
+    return sorted(elements, key=lambda e: e._get_bel())
+
+
+def _digest_bytes(b):
+    tuple_sha512 = hashlib.sha512(b)
+    return tuple_sha512.hexdigest()[:8]
+
+
+def _hash_tuple(t):
+    tuple_bytes = pickle.dumps(t)
+    return _digest_bytes(tuple_bytes)
+
+
+def _hash_node(node_tuple):
+    """Converts a PyBEL node tuple to a hash
+
+    :param tuple node_tuple: A BEL node
+    :return: A hashed version of the node tuple using :func:`hashlib.sha512` hash of the binary pickle dump
+    :rtype: str
+    """
+    return _hash_tuple(node_tuple)
 
 
 @six.add_metaclass(abc.ABCMeta)
-class BaseEntity(dict):
+class BelConvertable(dict):
+    def __init__(self, *args, **kwargs):
+        super(BelConvertable, self).__init__(*args, **kwargs)
+        self._bel = None
+
+    @abc.abstractmethod
+    def as_tuple(self):
+        """Returns this entity as a canonical tuple
+
+        :rtype: tuple
+        """
+
+    @abc.abstractmethod
+    def as_bel(self):
+        """Returns this entity as canonical BEL
+
+        :rtype: str
+        """
+
+    def as_sha512(self):
+        """Returns this entity as a hash
+
+        :rtype: str
+        """
+        return _hash_node(self.as_tuple())
+
+    def _get_bel(self):
+        if self._bel is None:
+            self._bel = self.as_bel()
+
+        return self._bel
+
+    def __hash__(self):
+        """Use the tuple serialization of this node as the hash
+
+        :rtype: int
+        """
+        return hash(self._get_bel())
+
+    def __str__(self):
+        return self._get_bel()
+
+
+class BaseEntity(BelConvertable):
     """This class represents all BEL nodes. It can be converted to a tuple and hashed."""
 
-    def __init__(self, func):
+    def __init__(self, func, **kwargs):
         """
         :param str func: The PyBEL function
         """
@@ -71,37 +136,6 @@ class BaseEntity(dict):
         """
         return rev_abundance_labels[self.function]
 
-    @abc.abstractmethod
-    def as_tuple(self):
-        """Returns this entity as a canonical tuple
-
-        :rtype: tuple
-        """
-
-    @abc.abstractmethod
-    def as_bel(self):
-        """Returns this entity as canonical BEL
-
-        :rtype: str
-        """
-
-    def as_sha512(self):
-        """Returns this entity as a hash
-
-        :rtype: str
-        """
-        return hash_node(self.as_tuple())
-
-    def __lt__(self, other):
-        """
-        :param BaseEntity other:
-        :rtype: bool
-        """
-        if not isinstance(other, BaseEntity):
-            raise TypeError('not BaseEntity: {} {}'.format(other.__class__.__name__, other))
-
-        return self.as_bel() < other.as_bel()
-
     def __hash__(self):
         """Use the tuple serialization of this node as the hash
 
@@ -109,23 +143,35 @@ class BaseEntity(dict):
         """
         return hash(self.as_tuple())
 
-    def __str__(self):
-        return self.as_bel()
+    def __eq__(self, other):
+        if not isinstance(other, BelConvertable):
+            raise TypeError('wrong type: {} {}'.format(other.__class__.__name__, other))
+
+        return self._get_bel() == other._get_bel()
+
+    def __lt__(self, other):
+        """
+        :param BaseEntity other:
+        :rtype: bool
+        """
+        if not isinstance(other, BelConvertable):
+            raise TypeError('wrong type: {} {}'.format(other.__class__.__name__, other))
+
+        return self._get_bel() < other._get_bel()
 
 
 class BaseAbundance(BaseEntity):
     """The superclass for building node data dictionaries"""
 
     def __init__(self, func, namespace, name=None, identifier=None):
-        """
+        """Raises an exception if name and identifier are both None.
+
         :param str func: The PyBEL function
         :param str namespace: The name of the namespace
         :param Optional[str] name:
         :param Optional[str] identifier:
+        :raises: PyBELDSLException
         """
-        if name is None and identifier is None:
-            raise PyBELDSLException('Either name or identifier must be specified')
-
         super(BaseAbundance, self).__init__(func=func)
         self.update(entity(namespace=namespace, name=name, identifier=identifier))
 
@@ -321,8 +367,7 @@ class CentralDogma(BaseAbundance):
         )
 
 
-@six.add_metaclass(abc.ABCMeta)
-class Variant(dict):
+class Variant(BelConvertable):
     """The superclass for variant dictionaries"""
 
     def __init__(self, kind):
@@ -331,28 +376,16 @@ class Variant(dict):
         """
         super(Variant, self).__init__({KIND: kind})
 
-    def __str__(self):
-        return self.as_bel()
-
-    @abc.abstractmethod
-    def as_tuple(self):
-        """Returns this variant as a tuple
-
-        :return:
-        """
-
-    @abc.abstractmethod
-    def as_bel(self):
-        """Returns this variant as BEL
-
-        :rtype: str
-        """
 
     def __lt__(self, other):
+        """
+        :param BaseEntity other:
+        :rtype: bool
+        """
         if not isinstance(other, Variant):
-            raise TypeError
+            raise TypeError('wrong type: {} {}'.format(other.__class__.__name__, other))
 
-        return self.as_bel() < other.as_bel()
+        return self._get_bel() < other._get_bel()
 
 
 class pmod(Variant):
@@ -631,7 +664,27 @@ class gene(CentralDogma):
         super(gene, self).__init__(GENE, namespace, name=name, identifier=identifier, variants=variants)
 
 
-class rna(CentralDogma):
+class _Transcribable(CentralDogma):
+    """An intermediate class between the CentralDogma and rna/mirna because both of them share the ability to
+    get their corresponding gene"""
+
+    def get_gene(self):
+        """Gets the corresponding gene. Raises an exception if it's not the reference node
+
+        :rtype: gene
+        :raises: InferCentralDogmaException
+        """
+        if self.variants:
+            raise InferCentralDogmaException('can not get gene for variant')
+
+        return gene(
+            namespace=self.namespace,
+            name=self.name,
+            identifier=self.identifier
+        )
+
+
+class rna(_Transcribable):
     """Builds an RNA node data dictionary"""
 
     def __init__(self, namespace, name=None, identifier=None, variants=None):
@@ -653,7 +706,7 @@ class rna(CentralDogma):
         super(rna, self).__init__(RNA, namespace, name=name, identifier=identifier, variants=variants)
 
 
-class mirna(CentralDogma):
+class mirna(_Transcribable):
     """Builds a miRNA node data dictionary"""
 
     def __init__(self, namespace, name=None, identifier=None, variants=None):
@@ -706,6 +759,21 @@ class protein(CentralDogma):
         """
         super(protein, self).__init__(PROTEIN, namespace, name=name, identifier=identifier, variants=variants)
 
+    def get_rna(self):
+        """Gets the corresponding RNA. Raises an exception if it's not the reference node
+
+        :rtype: rna
+        :raises: InferCentralDogmaException
+        """
+        if self.variants:
+            raise InferCentralDogmaException('can not get rna for variant')
+
+        return rna(
+            namespace=self.namespace,
+            name=self.name,
+            identifier=self.identifier
+        )
+
 
 def _tuplable_list_as_tuple(entities):
     """A helper function for converting reaction list
@@ -755,7 +823,7 @@ class reaction(BaseEntity):
         :rtype: tuple
         """
         return (
-            self[FUNCTION],
+            self.function,
             _tuplable_list_as_tuple(self[REACTANTS]),
             _tuplable_list_as_tuple(self[PRODUCTS])
         )
@@ -787,7 +855,7 @@ class ListAbundance(BaseEntity):
 
         :rtype: tuple
         """
-        return (self[FUNCTION],) + _tuplable_list_as_tuple(self[MEMBERS])
+        return (self.function,) + _tuplable_list_as_tuple(self[MEMBERS])
 
     def as_bel(self):
         """Returns the list abundance as canonicalized BEL
@@ -847,23 +915,8 @@ class composite_abundance(ListAbundance):
         super(composite_abundance, self).__init__(func=COMPOSITE, members=members)
 
 
-@six.add_metaclass(abc.ABCMeta)
-class FusionRangeBase(dict):
+class FusionRangeBase(BelConvertable):
     """The superclass for fusion range data dictionaries"""
-
-    @abc.abstractmethod
-    def as_tuple(self):
-        """Returns this fusion range as a tuple
-
-        :rtype: tuple
-        """
-
-    @abc.abstractmethod
-    def as_bel(self):
-        """Returns this fusion range as BEL
-
-        :rtype: str
-        """
 
 
 class missing_fusion_range(FusionRangeBase):
@@ -945,15 +998,12 @@ class FusionBase(BaseEntity):
         :param Optional[FusionRangeBase] range3p: A fusion range for the 3-prime partner
         """
         super(FusionBase, self).__init__(func=func)
-        self.update({
-            FUNCTION: func,
-            FUSION: {
-                PARTNER_5P: partner5p,
-                PARTNER_3P: partner3p,
-                RANGE_5P: range5p or missing_fusion_range(),
-                RANGE_3P: range3p or missing_fusion_range()
-            }
-        })
+        self[FUSION] = {
+            PARTNER_5P: partner5p,
+            PARTNER_3P: partner3p,
+            RANGE_5P: range5p or missing_fusion_range(),
+            RANGE_3P: range3p or missing_fusion_range()
+        }
 
     @property
     def partner5p(self):

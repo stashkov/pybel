@@ -14,7 +14,10 @@ from pybel.dsl.nodes import (
 from pybel.parser import BelParser
 from pybel.parser.exc import MalformedTranslocationWarning
 from pybel.parser.parse_bel import modifier_po_to_dict
-from tests.constants import TestTokenParserBase, assertHasEdge, assertHasNode, update_provenance, test_evidence_text, test_citation_dict
+from tests.constants import (
+    TestTokenParserBase, assertHasEdge, assertHasNode, test_citation_dict, test_evidence_text,
+    update_provenance,
+)
 
 log = logging.getLogger(__name__)
 
@@ -30,8 +33,6 @@ class TestAbundance(TestTokenParserBase):
         self.parser.general_abundance.setParseAction(self.parser.handle_term)
 
         self.expected_node = abundance(namespace='CHEBI', name='oxygen atom')
-        self.expected_node_tuple = self.expected_node.as_tuple()
-
         self.expected_canonical_bel = 'a(CHEBI:"oxygen atom")'
 
     def test_short_abundance(self):
@@ -46,7 +47,6 @@ class TestAbundance(TestTokenParserBase):
 
         self.assertIsInstance(node, BaseAbundance)
         self.assertEqual(self.expected_node, node)
-        self.assertEqual(self.expected_node_tuple, node.as_tuple())
         self.assertEqual(self.expected_canonical_bel, node.as_bel())
 
     def test_long_abundance(self):

@@ -237,6 +237,8 @@ class TestInterchange(TemporaryCacheClsMixin, BelReconstitutionMixin):
         network_id = to_ndex(self.thorough_graph)
         time.sleep(10)  # make sure network has time to process. usually very fast.
         reconstituted = from_ndex(network_id)
+
+        self.maxDiff = None
         self.bel_thorough_reconstituted(reconstituted, check_warnings=False, check_citation_name=False)
 
         # If the test passes, do some clean-up

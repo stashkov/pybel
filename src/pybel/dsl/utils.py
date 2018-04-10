@@ -4,6 +4,10 @@ from .exc import PyBELDSLException
 from ..constants import BEL_DEFAULT_NAMESPACE, IDENTIFIER, NAME, NAMESPACE
 from ..utils import ensure_quotes
 
+__all__ = [
+    'entity'
+]
+
 
 class entity(dict):
     def __init__(self, namespace, name=None, identifier=None):
