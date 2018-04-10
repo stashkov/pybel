@@ -6,7 +6,7 @@ from copy import deepcopy
 from pybel import BELGraph
 from pybel.constants import IDENTIFIER
 from pybel.examples import sialic_acid_graph
-from pybel.examples.sialic_acid_example import cd33, cd33_phosphorylated, shp2, syk, trem2
+from pybel.examples.sialic_acid_example import cd33_phosphorylated, shp2, syk, trem2
 from pybel.manager.models import Edge, Namespace, Network
 from pybel.manager.query_manager import graph_from_edges
 from tests.constants import TemporaryCacheClsMixin, TestGraphMixin
@@ -15,18 +15,12 @@ from tests.mocks import mock_bel_resources
 chebi_url = 'https://arty.scai.fraunhofer.de/artifactory/bel/namespace/chebi/chebi-20170725.belns'
 hgnc_url = 'https://arty.scai.fraunhofer.de/artifactory/bel/namespace/hgnc-human-genes/hgnc-human-genes-20170725.belns'
 
-trem2_copy = deepcopy(trem2)
-del trem2_copy[IDENTIFIER]
-
-syk_copy = deepcopy(syk)
-del syk_copy[IDENTIFIER]
-
-shp2_copy = deepcopy(shp2)
-del shp2_copy[IDENTIFIER]
-
 
 class TestNodes(unittest.TestCase):
     def test_identifier_missing(self):
+        trem2_copy = deepcopy(trem2)
+        del trem2_copy[IDENTIFIER]
+
         self.assertNotIn(IDENTIFIER, trem2_copy)
         self.assertEqual('p(HGNC:TREM2)', trem2_copy.as_bel())
 
