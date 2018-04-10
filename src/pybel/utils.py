@@ -3,7 +3,6 @@
 import hashlib
 import json
 import logging
-import pickle
 from collections import Iterable, MutableMapping, defaultdict
 from datetime import datetime
 
@@ -217,12 +216,6 @@ def hash_dump(data):
     :rtype: str
     """
     return _digest_bytes(json.dumps(data, ensure_ascii=False, sort_keys=True).encode('utf-8'))
-
-
-
-
-
-
 
 
 def _hash_citation(data):
