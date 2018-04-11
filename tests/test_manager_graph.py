@@ -686,7 +686,7 @@ class TestReconstituteNodeTuples(TemporaryCacheMixin):
                          msg='Wrong nodes: {}'.format('\n'.join(map(str, graph))))
         self.assertEqual(number_edges, self.manager.count_edges(), msg='Wrong edges: {}'.format(graph.edges()))
 
-        r_node = self.manager.get_node_by_hash(node.as_sha512())
+        r_node = self.manager.get_node_by_dict(node)
         self.assertIsNotNone(r_node)
         self.assertEqual(node, r_node.as_bel(), msg='reconstitution not working properly')
 
@@ -1419,26 +1419,21 @@ class TestNoAddNode(TemporaryCacheMixin):
         graph.add_entity(rs1234)
         graph.add_entity(rs1235)
 
-        rs1234_hash = rs1234.as_sha512()
-        rs1235_hash = rs1235.as_sha512()
-
         self.manager.insert_graph(graph, store_parts=True)
 
-        rs1234_lookup = self.manager.get_node_by_hash(rs1234_hash)
+        rs1234_lookup = self.manager.get_node_by_dict(rs1234)
         self.assertIsNotNone(rs1234_lookup)
         self.assertEqual('Gene', rs1234_lookup.type)
         self.assertEqual('g(dbSNP:rs1234)', rs1234_lookup.bel)
-        self.assertEqual(rs1234_hash, rs1234_lookup.sha512)
         self.assertIsNotNone(rs1234_lookup.namespace_entry)
         self.assertEqual('rs1234', rs1234_lookup.namespace_entry.name)
         self.assertEqual('dbSNP', rs1234_lookup.namespace_entry.namespace.keyword)
         self.assertEqual(DBSNP_PATTERN, rs1234_lookup.namespace_entry.namespace.pattern)
 
-        rs1235_lookup = self.manager.get_node_by_hash(rs1235_hash)
+        rs1235_lookup = self.manager.get_node_by_dict(rs1235)
         self.assertIsNotNone(rs1235_lookup)
         self.assertEqual('Gene', rs1235_lookup.type)
         self.assertEqual('g(dbSNP:rs1235)', rs1235_lookup.bel)
-        self.assertEqual(rs1235_hash, rs1235_lookup.sha512)
         self.assertIsNotNone(rs1235_lookup.namespace_entry)
         self.assertEqual('rs1235', rs1235_lookup.namespace_entry.name)
         self.assertEqual('dbSNP', rs1235_lookup.namespace_entry.namespace.keyword)

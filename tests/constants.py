@@ -1256,7 +1256,13 @@ class BelReconstitutionMixin(TestGraphMixin):
             {node.as_bel() for node in BEL_THOROUGH_NODES},
             {node.as_bel() for node in graph}
         )
-        self.assertEqual(Counter(sorted(BEL_THOROUGH_NODES)), Counter(sorted(graph)))
+
+        self.assertEqual(
+            {hash(node) for node in BEL_THOROUGH_NODES},
+            {hash(node) for node in graph}
+        )
+
+        self.assertEqual(Counter(BEL_THOROUGH_NODES), Counter(graph))
 
         self.assertCountEqual(BEL_THOROUGH_NODES, graph)
         self.assertEqual(sorted(BEL_THOROUGH_NODES), sorted(graph))

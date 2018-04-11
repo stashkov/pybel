@@ -3,7 +3,7 @@
 from .base_manager import BaseManager
 from .models import Author, Citation, Edge, Evidence, Node
 from ..constants import CITATION_TYPE_PUBMED
-from ..dsl.nodes import BaseAbundance
+from ..dsl.nodes import BaseEntity
 from ..utils import hash_citation
 
 
@@ -18,16 +18,16 @@ class LookupManager(BaseManager):
         """
         return self.session.query(Node).filter(Node.sha512 == node_hash).one_or_none()
 
-    def get_node_by_dict(self, node_dict):
+    def get_node_by_dict(self, node):
         """Looks up a node by its data dictionary by hashing it then using :func:`get_node_by_hash`
 
-        :param BaseAbundance node_dict: A PyBEL node data dictionary
+        :param BaseEntity node: A PyBEL node data dictionary
         :rtype: Optional[Node]
         """
-        if not isinstance(node_dict, BaseAbundance):
-            raise TypeError
+        if not isinstance(node, BaseEntity):
+            raise TypeError('object is not BaseEntity: {} {}'.format(node.__class__.__name__, node))
 
-        return self.get_node_by_hash(node_dict.as_sha512())
+        return self.get_node_by_hash(node.as_sha512())
 
     def get_edge_by_hash(self, edge_hash):
         """Looks up an edge by the hash of a PyBEL edge data dictionary

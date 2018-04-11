@@ -110,8 +110,8 @@ class TestBoundMutation(TestEgfExample):
         self.assertIn(nfkb_complex, self.manager.sha512_to_node.values(), msg='NFKB is unindexed')
         self.assertIn(rela, self.manager.sha512_to_node.values(), msg='RELA is unindexed')
 
-        self.assertIn(nfkb1.as_sha512(), self.manager.sha512_to_node.keys(), msg='NFKB is unindexed')
-        self.assertIn(rela.as_sha512(), self.manager.sha512_to_node.keys(), msg='RELA is unindexed')
+        self.assertIn(nfkb1.as_sha512(), self.manager.sha512_to_node, msg='NFKB is unindexed')
+        self.assertIn(rela.as_sha512(), self.manager.sha512_to_node, msg='RELA is unindexed')
 
     def test_functions_registered(self):
         self.assertIn('delete_node_by_hash', mapped)
