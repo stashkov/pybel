@@ -4,24 +4,25 @@ import logging
 
 from .induce import get_subgraph_by_induction
 from .induce_shortest_paths import get_subgraph_by_all_shortest_paths
-from .. import pipeline
 from ..filters.edge_filters import filter_edges
 from ..filters.edge_predicate_builders import (
     build_annotation_dict_all_filter, build_annotation_dict_any_filter,
 )
 from ..mutation.expansion import expand_all_node_neighborhoods, expand_nodes_neighborhoods
+from ..pipeline import mutator
 from ...constants.induce_subgraph_keys import *
 
 __all__ = [
     'get_subgraph_by_edge_filter',
     'get_subgraph_by_annotations',
     'get_subgraph_by_annotation_value',
+    'get_subgraph',
 ]
 
 log = logging.getLogger(__name__)
 
 
-@pipeline.mutator
+@mutator
 def get_subgraph_by_edge_filter(graph, edge_filters):
     """Induces a subgraph on all edges that pass the given filters
 
@@ -41,7 +42,7 @@ def get_subgraph_by_edge_filter(graph, edge_filters):
     return result
 
 
-@pipeline.mutator
+@mutator
 def get_subgraph_by_annotations(graph, annotations, or_=None):
     """Returns the subgraph given an annotations filter.
 
@@ -60,7 +61,7 @@ def get_subgraph_by_annotations(graph, annotations, or_=None):
     return get_subgraph_by_edge_filter(graph, edge_filter_builder(annotations))
 
 
-@pipeline.mutator
+@mutator
 def get_subgraph_by_annotation_value(graph, annotation, value):
     """Builds a new subgraph induced over all edges whose annotations match the given key and value
 
@@ -73,7 +74,7 @@ def get_subgraph_by_annotation_value(graph, annotation, value):
     return get_subgraph_by_annotations(graph, {annotation: {value}})
 
 
-@pipeline.mutator
+@mutator
 def get_subgraph_by_neighborhood(graph, nodes):
     """Gets a BEL graph around the neighborhoods of the given nodes. Returns none if no nodes are in the graph
 
@@ -95,7 +96,7 @@ def get_subgraph_by_neighborhood(graph, nodes):
     return result
 
 
-@pipeline.mutator
+@mutator
 def get_subgraph_by_second_neighbors(graph, nodes, filter_pathologies=False):
     """Gets a BEL graph around the neighborhoods of the given nodes, and expands to the neighborhood of those nodes
 
@@ -114,7 +115,7 @@ def get_subgraph_by_second_neighbors(graph, nodes, filter_pathologies=False):
     return result
 
 
-@pipeline.mutator
+@mutator
 def get_subgraph(graph, seed_method=None, seed_data=None, expand_nodes=None, remove_nodes=None):
     """Runs pipeline query on graph with multiple subgraph filters and expanders.
 

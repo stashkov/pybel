@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from ... import pipeline
+from ...pipeline import in_place_mutator
 from ....constants import RELATION, unqualified_edges
 
 __all__ = [
@@ -9,7 +9,7 @@ __all__ = [
 ]
 
 
-@pipeline.in_place_mutator
+@in_place_mutator
 def collapse_pair(graph, *, survivor, from_node):
     """Rewires all edges from the synonymous node to the survivor node, then deletes the synonymous node.
 
@@ -41,7 +41,7 @@ def collapse_pair(graph, *, survivor, from_node):
     graph.remove_node(from_node)
 
 
-@pipeline.in_place_mutator
+@in_place_mutator
 def collapse_nodes(graph, dict_of_sets_of_nodes):
     """Collapses all nodes in values to the key nodes, in place
 

@@ -3,11 +3,11 @@
 import logging
 import unittest
 
-from pybel.examples.egf_example import nfkb_complex, rela, nfkb1, nfkb2, egf_graph
+from pybel.examples.egf_example import egf_graph, nfkb1, nfkb_complex, rela
+from pybel.struct.exc import MissingPipelineFunctionError
 from pybel.struct.mutation import build_delete_node_by_hash, build_expand_node_neighborhood_by_hash, infer_central_dogma
-from pybel.struct.pipeline import MissingPipelineFunctionError, Pipeline, assert_is_mapped_to_pipeline, mapped
+from pybel.struct.pipeline import Pipeline, assert_is_mapped_to_pipeline, mapped
 from tests.struct_mocks import MockQueryManager
-
 
 log = logging.getLogger(__name__)
 log.setLevel(10)

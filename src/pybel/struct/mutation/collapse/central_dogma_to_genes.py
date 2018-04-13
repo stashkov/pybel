@@ -4,7 +4,7 @@ from collections import defaultdict
 
 from .collapse import collapse_nodes
 from ..inference import infer_central_dogma
-from ... import pipeline
+from ...pipeline import in_place_mutator
 from ....constants import RELATION, TRANSCRIBED_TO, TRANSLATED_TO
 
 __all__ = [
@@ -42,7 +42,7 @@ def build_central_dogma_collapse_gene_dict(graph):
     return collapse_dict
 
 
-@pipeline.in_place_mutator
+@in_place_mutator
 def collapse_by_central_dogma_to_genes(graph):
     """Collapses all nodes from the central dogma (:data:`pybel.constants.GENE`, :data:`pybel.constants.RNA`,
     :data:`pybel.constants.MIRNA`, and :data:`pybel.constants.PROTEIN`) to :data:`pybel.constants.GENE`, in-place. This

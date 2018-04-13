@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 
-from .. import pipeline
+from ..pipeline import uni_in_place_mutator
 
 
-@pipeline.uni_in_place_mutator
+@uni_in_place_mutator
 def ensure_node_from_universe(universe, graph, node, raise_for_missing=False):
     """Makes sure that the subgraph has the given node
 

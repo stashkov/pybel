@@ -4,8 +4,8 @@ import itertools as itt
 import logging
 from collections import defaultdict
 
-from ... import pipeline
 from ...filters.edge_filters import and_edge_predicates
+from ...pipeline import uni_in_place_mutator
 from ....constants import RELATION
 
 __all__ = [
@@ -16,7 +16,7 @@ log = logging.getLogger(__name__)
 
 
 # TODO should this bother checking multiple relationship types?
-@pipeline.uni_in_place_mutator
+@uni_in_place_mutator
 def expand_internal(universe, graph, edge_filters=None):
     """Edges between entities in the subgraph that pass the given filters
 

@@ -3,7 +3,7 @@
 from collections import defaultdict
 
 from .collapse import collapse_nodes
-from ... import pipeline
+from ...pipeline import in_place_mutator
 from ....constants import RELATION, TRANSCRIBED_TO, TRANSLATED_TO
 
 __all__ = [
@@ -41,7 +41,7 @@ def build_central_dogma_collapse_dict(graph):
     return collapse_dict
 
 
-@pipeline.in_place_mutator
+@in_place_mutator
 def collapse_by_central_dogma(graph):
     """Collapses all nodes from the central dogma (GENE, RNA, PROTEIN) to PROTEIN, or most downstream possible entity,
     in place. This function wraps :func:`collapse_nodes` and :func:`build_central_dogma_collapse_dict`.

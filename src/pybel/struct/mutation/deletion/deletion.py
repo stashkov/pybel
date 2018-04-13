@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 
-from ... import pipeline
 from ...filters.edge_filters import filter_edges
 from ...filters.edge_predicates import is_associative_relation
 from ...filters.node_filters import get_nodes
 from ...filters.node_predicate_builders import function_inclusion_filter_builder
+from ...pipeline import in_place_mutator
 from ....constants import PATHOLOGY
 
 __all__ = [
@@ -14,7 +14,7 @@ __all__ = [
 ]
 
 
-@pipeline.in_place_mutator
+@in_place_mutator
 def remove_filtered_edges(graph, edge_filters):
     """Removes edges passing the given edge filters
 
@@ -27,7 +27,7 @@ def remove_filtered_edges(graph, edge_filters):
     graph.remove_edges_from(edges)
 
 
-@pipeline.in_place_mutator
+@in_place_mutator
 def remove_pathologies(graph):
     """Remove pathology nodes
 
@@ -37,7 +37,7 @@ def remove_pathologies(graph):
     graph.remove_nodes_from(nodes)
 
 
-@pipeline.in_place_mutator
+@in_place_mutator
 def remove_associations(graph):
     """Removes all associative relationships from the graph
 

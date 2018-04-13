@@ -20,14 +20,14 @@ Example Pipeline #2
 ~~~~~~~~~~~~~~~~~~~
 This example shows how additional data can be integrated into a graph.
 
->>> from pybel.constants import PROTEIN
+>>> from pybel.dsl import protein
 >>> network = ...
 >>> example = Pipeline()
 >>> example.append('infer_central_dogma')
 >>> example.append('enrich_unqualified')
 >>> example.append('infer_central_dogma')
 >>> example.append('expand_periphery')
->>> example.append('expand_nodes_neighborhoods', [(PROTEIN, 'HGNC', 'AKT1'), (PROTEIN, 'HGNC', 'AKT2')])
+>>> example.append('expand_nodes_neighborhoods', [protein('HGNC', 'AKT1'), protein('HGNC', 'AKT2')])
 >>> result = example.run(network)
 
 Example Pipeline #3
@@ -44,14 +44,14 @@ This example shows how the results from multiple pipelines can be combine.
 
 """
 
-from __future__ import print_function
-
 import json
 import logging
-import types
 from functools import wraps
 from inspect import signature
 
+import types
+
+from .exc import MissingPipelineFunctionError
 from .graph import node_intersection, union
 
 __all__ = [
@@ -61,7 +61,6 @@ __all__ = [
     'uni_mutator',
     'mutator',
     'splitter',
-    'MissingPipelineFunctionError',
 ]
 
 log = logging.getLogger(__name__)
@@ -79,10 +78,6 @@ no_arguments_map = {}
 
 #: A map of function names to functions that split graphs into dictionaries of graphs
 splitter_map = {}
-
-
-class MissingPipelineFunctionError(KeyError):
-    """Raised when trying to run the pipeline with a function that isn't registered"""
 
 
 def _register(universe, in_place, **kwargs):

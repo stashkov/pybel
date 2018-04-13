@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
 from ..utils import ensure_node_from_universe
-from ... import pipeline
 from ...filters.node_predicates import is_pathology
+from ...pipeline import uni_in_place_mutator
 
 __all__ = [
     'expand_node_predecessors',
@@ -13,7 +13,7 @@ __all__ = [
 ]
 
 
-@pipeline.uni_in_place_mutator
+@uni_in_place_mutator
 def expand_node_predecessors(universe, graph, node):
     """Expands around the predecessors of the given node in the result graph by looking at the universe graph,
     in place.
@@ -39,7 +39,7 @@ def expand_node_predecessors(universe, graph, node):
         graph.add_edge(source, successor, key=key, **data)
 
 
-@pipeline.uni_in_place_mutator
+@uni_in_place_mutator
 def expand_node_successors(universe, graph, node):
     """Expands around the successors of the given node in the result graph by looking at the universe graph,
     in place.
@@ -65,7 +65,7 @@ def expand_node_successors(universe, graph, node):
         graph.add_edge(predecessor, target, key=key, **data)
 
 
-@pipeline.uni_in_place_mutator
+@uni_in_place_mutator
 def expand_node_neighborhood(universe, graph, node):
     """Expands around the neighborhoods of the given node in the result graph by looking at the universe graph,
     in place.
@@ -78,7 +78,7 @@ def expand_node_neighborhood(universe, graph, node):
     expand_node_successors(universe, graph, node)
 
 
-@pipeline.uni_in_place_mutator
+@uni_in_place_mutator
 def expand_nodes_neighborhoods(universe, graph, nodes):
     """Expands around the neighborhoods of the given node in the result graph by looking at the universe graph,
     in place.
@@ -91,7 +91,7 @@ def expand_nodes_neighborhoods(universe, graph, nodes):
         expand_node_neighborhood(universe, graph, node)
 
 
-@pipeline.uni_in_place_mutator
+@uni_in_place_mutator
 def expand_all_node_neighborhoods(universe, graph, filter_pathologies=False):
     """Expands the neighborhoods of all nodes in the given graph based on the universe graph.
 

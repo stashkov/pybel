@@ -6,6 +6,7 @@ from collections import Iterable
 
 import numpy as np
 
+from .exc import QueryMissingNetworksError
 from .graph import union
 from .pipeline import Pipeline
 from .selection.subgraph import get_subgraph
@@ -16,14 +17,18 @@ from ..dsl.nodes import BaseEntity
 from ..manager.models import Node
 from ..tokens import dict_to_entity
 
+__all__ = [
+    'Query',
+]
+
 log = logging.getLogger(__name__)
 
 SEED_METHOD = 'type'
 SEED_DATA = 'data'
 
 
-class QueryMissingNetworksError(KeyError):
-    """Raised if a query is created from json but doesn't have a listing of network identifiers"""
+def _get_seed():
+    return np.random.randint(0, np.iinfo('i').max)
 
 
 class Query(object):
@@ -106,7 +111,7 @@ class Query(object):
         Kwargs can have ``number_edges`` or ``number_seed_nodes``.
         """
         data = {
-            'seed': np.random.randint(0, np.iinfo('i').max)
+            'seed': _get_seed()
         }
         data.update(kwargs)
 

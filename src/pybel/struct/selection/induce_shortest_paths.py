@@ -8,7 +8,7 @@ import networkx as nx
 from networkx import all_shortest_paths
 
 from .induce import get_subgraph_by_induction
-from .. import pipeline
+from ..pipeline import mutator
 from ...constants import FUNCTION, PATHOLOGY
 
 log = logging.getLogger(__name__)
@@ -52,7 +52,7 @@ def get_nodes_in_all_shortest_paths(graph, nodes, weight=None, remove_pathologie
     return set(itt.chain.from_iterable(shortest_paths_nodes_iterator))
 
 
-@pipeline.mutator
+@mutator
 def get_subgraph_by_all_shortest_paths(graph, nodes, weight=None, remove_pathologies=True):
     """Induces a subgraph over the nodes in the pairwise shortest paths between all of the nodes in the given list
 

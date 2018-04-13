@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 
-from .. import pipeline
+from ..pipeline import mutator
 
 __all__ = [
     'get_subgraph_by_induction',
 ]
 
 
-@pipeline.mutator
+@mutator
 def get_subgraph_by_induction(graph, nodes):
     """Induces a graph over the given nodes. Returns None if none of the nodes are in the given graph.
 

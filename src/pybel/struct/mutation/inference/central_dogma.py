@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 
-from ... import pipeline
-from ....constants import FUNCTION, GENE, MIRNA, NAMESPACE, PROTEIN, RNA, TRANSCRIBED_TO, TRANSLATED_TO, VARIANTS
 import six
+
+from ...pipeline import in_place_mutator
+from ....constants import FUNCTION, MIRNA, NAMESPACE, PROTEIN, RNA, VARIANTS
 
 __all__ = [
     'infer_central_dogmatic_translations_by_namespace',
@@ -21,7 +22,7 @@ def _infer_converter_helper(node, data, new_function):
     return new_tup, new_dict
 
 
-@pipeline.in_place_mutator
+@in_place_mutator
 def infer_central_dogmatic_translations_by_namespace(graph, namespaces):
     """For all Protein entities in the given namespaces, adds the missing origin RNA and RNA-Protein translation edge
 
@@ -46,7 +47,7 @@ def infer_central_dogmatic_translations_by_namespace(graph, namespaces):
         graph.add_translation(node.get_rna(), node)
 
 
-@pipeline.in_place_mutator
+@in_place_mutator
 def infer_central_dogmatic_translations(graph):
     """For all HGNC Protein entities, adds the missing origin RNA and RNA-Protein translation edge
 
@@ -55,7 +56,7 @@ def infer_central_dogmatic_translations(graph):
     infer_central_dogmatic_translations_by_namespace(graph, 'HGNC')
 
 
-@pipeline.in_place_mutator
+@in_place_mutator
 def infer_central_dogmatic_transcriptions(graph):
     """For all RNA entities, adds the missing origin Gene and Gene-RNA transcription edge
 
@@ -74,7 +75,7 @@ def infer_central_dogmatic_transcriptions(graph):
         graph.add_transcription(node.get_gene(), node)
 
 
-@pipeline.in_place_mutator
+@in_place_mutator
 def infer_central_dogma(graph):
     """Adds all RNA-Protein translations then all Gene-RNA transcriptions by applying
     :func:`infer_central_dogmatic_translations` then :func:`infer_central_dogmatic_transcriptions`
