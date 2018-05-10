@@ -19,10 +19,10 @@ from pybel.struct.filters.edge_predicates import (
     is_causal_relation, is_direct_causal_relation,
 )
 from pybel.struct.filters.node_predicates import (
-    has_activity, has_causal_in_edges, has_causal_out_edges, has_fragment,
-    has_gene_modification, has_hgvs, has_protein_modification, has_variant, is_abundance, is_causal_central,
-    is_causal_sink, is_causal_source, is_degraded, is_gene, is_pathology, is_protein, is_translocated,
-    keep_node_permissive, node_exclusion_predicate_builder, node_inclusion_predicate_builder, not_pathology,
+    has_activity, has_causal_in_edges, has_causal_out_edges, has_fragment, has_gene_modification, has_hgvs,
+    has_protein_modification, has_variant, is_abundance, is_causal_central, is_causal_sink, is_causal_source,
+    is_degraded, is_gene, is_pathology, is_protein, is_translocated, is_upstream_leaf, keep_node_permissive,
+    node_exclusion_predicate_builder, node_inclusion_predicate_builder, not_pathology,
 )
 
 p1 = protein(name='BRAF', namespace='HGNC')
@@ -257,6 +257,16 @@ class TestNodePredicate(unittest.TestCase):
         self.assertFalse(is_causal_source(g, 3))
         self.assertFalse(is_causal_central(g, 3))
         self.assertTrue(is_causal_sink(g, 3))
+
+    def test_is_upstream_leaf(self):
+        graph = BELGraph()
+        graph.add_edge(1, 2)
+        graph.add_edge(2, 3)
+        graph.add_node(4)
+        self.assertTrue(is_upstream_leaf(graph, 1))
+        self.assertFalse(is_upstream_leaf(graph, 2))
+        self.assertFalse(is_upstream_leaf(graph, 3))
+        self.assertFalse(is_upstream_leaf(graph, 4))
 
 
 class TestInclusionExclusion(unittest.TestCase):

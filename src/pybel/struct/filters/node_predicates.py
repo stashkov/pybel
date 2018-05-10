@@ -32,6 +32,7 @@ __all__ = [
     'is_causal_source',
     'is_causal_sink',
     'is_causal_central',
+    'is_upstream_leaf'
 ]
 
 
@@ -349,3 +350,15 @@ def is_causal_central(graph, node):
     :rtype: bool
     """
     return has_causal_in_edges(graph, node) and has_causal_out_edges(graph, node)
+
+
+def is_upstream_leaf(graph, node):
+    """Returns if the node is an upstream leaf. An upstream leaf is defined as a node that has no in-edges, and exactly
+    1 out-edge.
+
+    :param pybel.BELGraph graph: A BEL graph
+    :param BaseEntity node: A BEL node
+    :return: If the node is an upstream leaf
+    :rtype: bool
+    """
+    return 0 == len(graph.predecessors(node)) and 1 == len(graph.successors(node))
