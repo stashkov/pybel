@@ -14,7 +14,7 @@ from tests.mocks import mock_bel_resources
 
 chebi_url = 'https://arty.scai.fraunhofer.de/artifactory/bel/namespace/chebi/chebi-20170725.belns'
 hgnc_url = 'https://arty.scai.fraunhofer.de/artifactory/bel/namespace/hgnc-human-genes/hgnc-human-genes-20170725.belns'
-
+gobp_url = 'https://arty.scai.fraunhofer.de/artifactory/bel/namespace/go-biological-process/go-biological-process-20170725.belns'
 
 class TestNodes(unittest.TestCase):
     def test_identifier_missing(self):
@@ -41,22 +41,23 @@ class TestSeeding(TemporaryCacheClsMixin, TestGraphMixin):
         insert()
 
     def test_hgnc_namespace_existence(self):
-        ns = self.manager.session.query(Namespace).filter(Namespace.url == hgnc_url).one_or_none()
+        ns = self.manager.get_namespace_by_url(hgnc_url)
         self.assertIsNotNone(ns)
         self.assertEqual(hgnc_url, ns.url)
 
     def test_chebi_namespace_existence_b(self):
-        ns = self.manager.session.query(Namespace).filter(Namespace.url == chebi_url).one_or_none()
+        ns = self.manager.get_namespace_by_url(chebi_url)
         self.assertIsNotNone(ns)
         self.assertEqual(chebi_url, ns.url)
 
     def test_namespace_existence_c(self):
-        a = 'https://arty.scai.fraunhofer.de/artifactory/bel/namespace/go-biological-process/go-biological-process-20170725.belns'
-        self.manager.session.query(Namespace).filter(Namespace.url == a).one()
+        ns = self.manager.get_namespace_by_url(gobp_url)
+        self.assertIsNotNone(ns)
+        self.assertEqual(gobp_url, ns.url)
+
 
     def test_sialic_acid_in_node_store(self):
         name = 'sialic acid'
-
         n = self.manager.get_namespace_entry(chebi_url, name)
         self.assertIsNotNone(n)
         self.assertEqual(name, n.name)

@@ -19,9 +19,8 @@ from ..dsl import (
     hgvs, mirna, missing_fusion_range, named_complex_abundance, pathology, pmod, protein, protein_fusion, reaction, rna,
     rna_fusion,
 )
-from ..utils import hash_citation
 from ..io.gpickle import from_bytes, to_bytes
-from ..utils import hash_edge
+from ..utils import hash_citation, hash_edge
 
 __all__ = [
     'Base',
@@ -39,36 +38,37 @@ __all__ = [
     'Property',
 ]
 
-NAMESPACE_TABLE_NAME = 'pybel_namespace'
-NAMESPACE_ENTRY_TABLE_NAME = 'pybel_namespaceEntry'
-NAMESPACE_HIERARCHY_TABLE_NAME = 'pybel_namespace_hierarchy'
+BASE_TABLE_NAME = 'bel'
+NAMESPACE_TABLE_NAME = f'{BASE_TABLE_NAME}_namespace'
+NAMESPACE_ENTRY_TABLE_NAME = f'{BASE_TABLE_NAME}_namespaceEntry'
+NAMESPACE_HIERARCHY_TABLE_NAME = f'{BASE_TABLE_NAME}_namespace_hierarchy'
 
-ANNOTATION_TABLE_NAME = 'pybel_annotation'
-ANNOTATION_ENTRY_TABLE_NAME = 'pybel_annotationEntry'
-ANNOTATION_HIERARCHY_TABLE_NAME = 'pybel_annotation_hierarchy'
+ANNOTATION_TABLE_NAME = f'{BASE_TABLE_NAME}_annotation'
+ANNOTATION_ENTRY_TABLE_NAME = f'{BASE_TABLE_NAME}_annotationEntry'
+ANNOTATION_HIERARCHY_TABLE_NAME = f'{BASE_TABLE_NAME}_annotation_hierarchy'
 
-NETWORK_TABLE_NAME = 'pybel_network'
-NETWORK_NODE_TABLE_NAME = 'pybel_network_node'
-NETWORK_EDGE_TABLE_NAME = 'pybel_network_edge'
-NETWORK_NAMESPACE_TABLE_NAME = 'pybel_network_namespace'
-NETWORK_ANNOTATION_TABLE_NAME = 'pybel_network_annotation'
-NETWORK_CITATION_TABLE_NAME = 'pybel_network_citation'
+NETWORK_TABLE_NAME = f'{BASE_TABLE_NAME}_network'
+NETWORK_NODE_TABLE_NAME = f'{BASE_TABLE_NAME}_network_node'
+NETWORK_EDGE_TABLE_NAME = f'{BASE_TABLE_NAME}_network_edge'
+NETWORK_NAMESPACE_TABLE_NAME = f'{BASE_TABLE_NAME}_network_namespace'
+NETWORK_ANNOTATION_TABLE_NAME = f'{BASE_TABLE_NAME}_network_annotation'
+NETWORK_CITATION_TABLE_NAME = f'{BASE_TABLE_NAME}_network_citation'
 
-NODE_TABLE_NAME = 'pybel_node'
-NODE_MODIFICATION_TABLE_NAME = 'pybel_node_modification'
+NODE_TABLE_NAME = f'{BASE_TABLE_NAME}_node'
+NODE_MODIFICATION_TABLE_NAME = f'{BASE_TABLE_NAME}_node_modification'
 
-MODIFICATION_TABLE_NAME = 'pybel_modification'
+MODIFICATION_TABLE_NAME = f'{BASE_TABLE_NAME}_modification'
 
-EDGE_TABLE_NAME = 'pybel_edge'
-EDGE_ANNOTATION_TABLE_NAME = 'pybel_edge_annotationEntry'
-EDGE_PROPERTY_TABLE_NAME = 'pybel_edge_property'
+EDGE_TABLE_NAME = f'{BASE_TABLE_NAME}_edge'
+EDGE_ANNOTATION_TABLE_NAME = f'{BASE_TABLE_NAME}_edge_annotationEntry'
+EDGE_PROPERTY_TABLE_NAME = f'{BASE_TABLE_NAME}_edge_property'
 
-AUTHOR_TABLE_NAME = 'pybel_author'
-AUTHOR_CITATION_TABLE_NAME = 'pybel_author_citation'
+AUTHOR_TABLE_NAME = f'{BASE_TABLE_NAME}_author'
+AUTHOR_CITATION_TABLE_NAME = f'{BASE_TABLE_NAME}_author_citation'
 
-CITATION_TABLE_NAME = 'pybel_citation'
-EVIDENCE_TABLE_NAME = 'pybel_evidence'
-PROPERTY_TABLE_NAME = 'pybel_property'
+CITATION_TABLE_NAME = f'{BASE_TABLE_NAME}_citation'
+EVIDENCE_TABLE_NAME = f'{BASE_TABLE_NAME}_evidence'
+PROPERTY_TABLE_NAME = f'{BASE_TABLE_NAME}_property'
 
 LONGBLOB = 4294967295
 
@@ -87,15 +87,15 @@ _fn_dsl_map = {
 namespace_hierarchy = Table(
     NAMESPACE_HIERARCHY_TABLE_NAME,
     Base.metadata,
-    Column('left_id', Integer, ForeignKey('{}.id'.format(NAMESPACE_ENTRY_TABLE_NAME)), primary_key=True),
-    Column('right_id', Integer, ForeignKey('{}.id'.format(NAMESPACE_ENTRY_TABLE_NAME)), primary_key=True)
+    Column('left_id', Integer, ForeignKey(f'{NAMESPACE_ENTRY_TABLE_NAME}.id'), primary_key=True),
+    Column('right_id', Integer, ForeignKey(f'{NAMESPACE_ENTRY_TABLE_NAME}.id'), primary_key=True)
 )
 
 annotation_hierarchy = Table(
     ANNOTATION_HIERARCHY_TABLE_NAME,
     Base.metadata,
-    Column('left_id', Integer, ForeignKey('{}.id'.format(ANNOTATION_ENTRY_TABLE_NAME)), primary_key=True),
-    Column('right_id', Integer, ForeignKey('{}.id'.format(ANNOTATION_ENTRY_TABLE_NAME)), primary_key=True)
+    Column('left_id', Integer, ForeignKey(f'{ANNOTATION_ENTRY_TABLE_NAME}.id'), primary_key=True),
+    Column('right_id', Integer, ForeignKey(f'{ANNOTATION_ENTRY_TABLE_NAME}.id'), primary_key=True)
 )
 
 
@@ -194,8 +194,8 @@ class NamespaceEntry(Base):
     identifier = Column(String(255), index=True, nullable=True, doc='The database accession number')
     encoding = Column(String(8), nullable=True, doc='The biological entity types for which this name is valid')
 
-    namespace_id = Column(Integer, ForeignKey('{}.id'.format(NAMESPACE_TABLE_NAME)), nullable=False, index=True)
-    namespace = relationship(Namespace)
+    namespace_id = Column(Integer, ForeignKey(f'{NAMESPACE_TABLE_NAME}.id'), nullable=False, index=True)
+    namespace = relationship('Namespace')
 
     children = relationship(
         'NamespaceEntry',
@@ -349,7 +349,7 @@ class AnnotationEntry(Base):
                   doc='Name that is defined in the corresponding annotation definition file')
     label = Column(Text, nullable=True)
 
-    annotation_id = Column(Integer, ForeignKey('{}.id'.format(ANNOTATION_TABLE_NAME)), index=True)
+    annotation_id = Column(Integer, ForeignKey(f'{ANNOTATION_TABLE_NAME}.id'), index=True)
     annotation = relationship('Annotation', backref=backref('entries', lazy='dynamic'))
 
     children = relationship(
@@ -381,14 +381,14 @@ class AnnotationEntry(Base):
 
 network_edge = Table(
     NETWORK_EDGE_TABLE_NAME, Base.metadata,
-    Column('network_id', Integer, ForeignKey('{}.id'.format(NETWORK_TABLE_NAME)), primary_key=True),
-    Column('edge_id', Integer, ForeignKey('{}.id'.format(EDGE_TABLE_NAME)), primary_key=True)
+    Column('network_id', Integer, ForeignKey(f'{NETWORK_TABLE_NAME}.id'), primary_key=True),
+    Column('edge_id', Integer, ForeignKey(f'{EDGE_TABLE_NAME}.id'), primary_key=True)
 )
 
 network_node = Table(
     NETWORK_NODE_TABLE_NAME, Base.metadata,
-    Column('network_id', Integer, ForeignKey('{}.id'.format(NETWORK_TABLE_NAME)), primary_key=True),
-    Column('node_id', Integer, ForeignKey('{}.id'.format(NODE_TABLE_NAME)), primary_key=True)
+    Column('network_id', Integer, ForeignKey(f'{NETWORK_TABLE_NAME}.id'), primary_key=True),
+    Column('node_id', Integer, ForeignKey(f'{NODE_TABLE_NAME}.id'), primary_key=True)
 )
 
 
@@ -477,16 +477,26 @@ class Network(Base):
         self.blob = to_bytes(graph)
         self.sha512 = hashlib.sha512(self.blob).hexdigest()
 
+    @staticmethod
+    def filter_ids(network_ids):
+        """
+
+        :param network_ids:
+        :return:
+        """
+        return Network.id.in_(network_ids)
+
 
 node_modification = Table(
     NODE_MODIFICATION_TABLE_NAME, Base.metadata,
-    Column('node_id', Integer, ForeignKey('{}.id'.format(NODE_TABLE_NAME)), primary_key=True),
-    Column('modification_id', Integer, ForeignKey('{}.id'.format(MODIFICATION_TABLE_NAME)), primary_key=True)
+    Column('node_id', Integer, ForeignKey(f'{NODE_TABLE_NAME}.id'), primary_key=True),
+    Column('modification_id', Integer, ForeignKey(f'{MODIFICATION_TABLE_NAME}.id'), primary_key=True)
 )
 
 
 class Node(Base):
-    """Represents a BEL Term"""
+    """Represents a BEL Term."""
+
     __tablename__ = NODE_TABLE_NAME
 
     id = Column(Integer, primary_key=True)
@@ -497,7 +507,7 @@ class Node(Base):
     bel = Column(String(255), nullable=False, doc='Canonical BEL term that represents the given node')
     sha512 = Column(String(255), nullable=True, index=True)
 
-    namespace_entry_id = Column(Integer, ForeignKey('{}.id'.format(NAMESPACE_ENTRY_TABLE_NAME)), nullable=True)
+    namespace_entry_id = Column(Integer, ForeignKey(f'{NAMESPACE_ENTRY_TABLE_NAME}.id'), nullable=True)
     namespace_entry = relationship('NamespaceEntry', foreign_keys=[namespace_entry_id])
 
     modifications = relationship("Modification", secondary=node_modification, lazy='dynamic',
@@ -622,21 +632,21 @@ class Modification(Base):
 
     variantString = Column(String(255), nullable=True, doc='HGVS string if sequence modification')
 
-    p3_partner_id = Column(Integer, ForeignKey('{}.id'.format(NAMESPACE_ENTRY_TABLE_NAME)), nullable=True)
+    p3_partner_id = Column(Integer, ForeignKey(f'{NAMESPACE_ENTRY_TABLE_NAME}.id'), nullable=True)
     p3_partner = relationship("NamespaceEntry", foreign_keys=[p3_partner_id])
 
     p3_reference = Column(String(10), nullable=True)
     p3_start = Column(String(255), nullable=True)
     p3_stop = Column(String(255), nullable=True)
 
-    p5_partner_id = Column(Integer, ForeignKey('{}.id'.format(NAMESPACE_ENTRY_TABLE_NAME)), nullable=True)
+    p5_partner_id = Column(Integer, ForeignKey(f'{NAMESPACE_ENTRY_TABLE_NAME}.id'), nullable=True)
     p5_partner = relationship("NamespaceEntry", foreign_keys=[p5_partner_id])
 
     p5_reference = Column(String(10), nullable=True)
     p5_start = Column(String(255), nullable=True)
     p5_stop = Column(String(255), nullable=True)
 
-    identifier_id = Column(Integer, ForeignKey('{}.id'.format(NAMESPACE_ENTRY_TABLE_NAME)), nullable=True)
+    identifier_id = Column(Integer, ForeignKey(f'{NAMESPACE_ENTRY_TABLE_NAME}.id'), nullable=True)
     identifier = relationship("NamespaceEntry", foreign_keys=[identifier_id])
 
     residue = Column(String(3), nullable=True, doc='Three letter amino acid code if PMOD')
@@ -744,8 +754,8 @@ class Modification(Base):
 
 author_citation = Table(
     AUTHOR_CITATION_TABLE_NAME, Base.metadata,
-    Column('author_id', Integer, ForeignKey('{}.id'.format(AUTHOR_TABLE_NAME)), primary_key=True),
-    Column('citation_id', Integer, ForeignKey('{}.id'.format(CITATION_TABLE_NAME)), primary_key=True)
+    Column('author_id', Integer, ForeignKey(f'{AUTHOR_TABLE_NAME}.id'), primary_key=True),
+    Column('citation_id', Integer, ForeignKey(f'{CITATION_TABLE_NAME}.id'), primary_key=True)
 )
 
 
@@ -760,7 +770,7 @@ class Author(Base):
 
     @staticmethod
     def _hash_name(name):
-        return hashlib.sha512(name.casefold().encode('utf8')).hexdigest()
+        return hashlib.sha512(name.strip().casefold().encode('utf8')).hexdigest()
 
     @staticmethod
     def from_name(name):
@@ -796,10 +806,10 @@ class Citation(Base):
     pages = Column(Text, nullable=True, doc='Pages of the publication')
     date = Column(Date, nullable=True, doc='Publication date')
 
-    first_id = Column(Integer, ForeignKey('{}.id'.format(AUTHOR_TABLE_NAME)), nullable=True, doc='First author')
+    first_id = Column(Integer, ForeignKey(f'{AUTHOR_TABLE_NAME}.id'), nullable=True, doc='First author')
     first = relationship("Author", foreign_keys=[first_id])
 
-    last_id = Column(Integer, ForeignKey('{}.id'.format(AUTHOR_TABLE_NAME)), nullable=True, doc='Last author')
+    last_id = Column(Integer, ForeignKey(f'{AUTHOR_TABLE_NAME}.id'), nullable=True, doc='Last author')
     last = relationship("Author", foreign_keys=[last_id])
 
     authors = relationship("Author", secondary=author_citation, backref='citations')
@@ -933,11 +943,11 @@ class Edge(Base):
     bel = Column(Text, nullable=False, doc='Valid BEL statement that represents the given edge')
     relation = Column(String(255), nullable=False, index=True)
 
-    source_id = Column(Integer, ForeignKey('{}.id'.format(NODE_TABLE_NAME)), nullable=False)
+    source_id = Column(Integer, ForeignKey(f'{NODE_TABLE_NAME}.id'), nullable=False)
     source = relationship('Node', foreign_keys=[source_id],
                           backref=backref('out_edges', lazy='dynamic', cascade='all, delete-orphan'))
 
-    target_id = Column(Integer, ForeignKey('{}.id'.format(NODE_TABLE_NAME)), nullable=False)
+    target_id = Column(Integer, ForeignKey(f'{NODE_TABLE_NAME}.id'), nullable=False)
     target = relationship('Node', foreign_keys=[target_id],
                           backref=backref('in_edges', lazy='dynamic', cascade='all, delete-orphan'))
 
@@ -1046,7 +1056,7 @@ class Property(Base):
 
     sha512 = Column(String(255), index=True)
 
-    effect_id = Column(Integer, ForeignKey('{}.id'.format(NAMESPACE_ENTRY_TABLE_NAME)), nullable=True)
+    effect_id = Column(Integer, ForeignKey(f'{NAMESPACE_ENTRY_TABLE_NAME}.id'), nullable=True)
     effect = relationship('NamespaceEntry')
 
     @property

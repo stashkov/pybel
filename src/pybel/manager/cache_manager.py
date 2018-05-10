@@ -348,7 +348,6 @@ class NamespaceManager(BaseManager):
             return self.namespace_object_cache[url][name]
 
         entry_filter = and_(Namespace.url == url, NamespaceEntry.name == name)
-
         result = self.session.query(NamespaceEntry).join(Namespace).filter(entry_filter).all()
 
         if 0 == len(result):
@@ -894,7 +893,7 @@ class NetworkManager(NamespaceManager, AnnotationManager):
         :param iter[int] network_ids: The identifiers of networks in the database
         :rtype: list[Network]
         """
-        return self.session.query(Network).filter(Network.id.in_(network_ids)).all()
+        return self.session.query(Network).filter(Network.filter_ids(network_ids)).all()
 
     def get_graphs_by_ids(self, network_ids):
         """Gets a list of networks with the given identifiers and converts to BEL graphs. Note: order is not
@@ -1000,14 +999,13 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
         log.debug('storing graph parts: nodes')
         t = time.time()
 
-        for node in tqdm(graph, total=graph.number_of_nodes(), desc='Nodes'):
+        for node in tqdm(graph, total=graph.number_of_nodes(), desc='Creating node models'):
             namespace = graph.node[node].get(NAMESPACE)
 
             if graph.skip_storing_namespace(namespace):
                 continue  # already know this node won't be cached
 
             node_object = self.get_or_create_node(graph, node)
-
             if node_object is None:
                 log.warning('can not add node %s', node)
                 continue
@@ -1018,7 +1016,7 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
         log.debug('storing graph parts: edges')
         t = time.time()
         c = 0
-        for u, v, data in tqdm(graph.edges_iter(data=True), total=graph.number_of_edges(), desc='Edges'):
+        for u, v, data in tqdm(graph.edges_iter(data=True), total=graph.number_of_edges(), desc='Creating edge models'):
             if u.as_sha512() not in self.object_cache_node:
                 log.debug('Skipping uncached node: %s', u)
                 continue
@@ -1138,7 +1136,7 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
             target=self.object_cache_node[v.as_sha512()],
             relation=data[RELATION],
             bel=bel,
-            edge_hash=edge_hash,
+            sha512=edge_hash,
             evidence=evidence,
             properties=properties,
             annotations=annotations,
@@ -1153,7 +1151,7 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
             target=self.object_cache_node[v.as_sha512()],
             relation=data[RELATION],
             bel=bel,
-            edge_hash=edge_hash,
+            sha512=edge_hash,
         )
         network.edges.append(edge)
 
@@ -1187,19 +1185,15 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
         self.object_cache_evidence[evidence_hash] = evidence
         return evidence
 
-    def get_or_create_node(self, graph, node_data):
+    def get_or_create_node(self, graph, node):
         """Creates entry and object for given node if it does not exist. Returns none if can not create node.
 
         :param BELGraph graph: A BEL graph
-        :param BaseEntity node_data: A PyBEL node tuple
+        :param BaseEntity node: A PyBEL node tuple
         :rtype: Optional[Node]
         """
-
-        if not isinstance(node_data, BaseEntity):
-            raise RuntimeError('stop using tuples! {} {}'.format(node_data.__class__.__name__, node_data))
-
-        sha512 = node_data.as_sha512()
-        bel = str(node_data)
+        sha512 = node.as_sha512()
+        bel = node.as_bel()
 
         node_model = self.object_cache_node.get(sha512)
         if node_model is not None:
@@ -1210,25 +1204,26 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
             self.object_cache_node[sha512] = node_model
             return node_model
 
-        node_model = Node(type=node_data[FUNCTION], bel=bel, sha512=sha512)
+        self.object_cache_node[sha512] = node_model = Node(type=node[FUNCTION], bel=bel, sha512=sha512)
 
-        namespace = node_data.get(NAMESPACE)
+        namespace = node.get(NAMESPACE)
 
         if namespace is None:
             pass
 
         elif namespace in graph.namespace_url:
             url = graph.namespace_url[namespace]
-            name = node_data.get(NAME)
-            identifier = node_data.get(IDENTIFIER)
+            name = node.get(NAME)
+            identifier = node.get(IDENTIFIER)
 
             if identifier is not None:
                 entry = self.get_namespace_entry_by_id(url, identifier)
+                if entry is None:
+                    entry = self.get_namespace_entry(url, name)
             elif name is not None:
                 entry = self.get_namespace_entry(url, name)
             else:
-                entry = None
-
+                raise TypeError
 
             if entry is None:
                 log.debug('skipping node with identifier %s: %s', url, name)
@@ -1238,7 +1233,7 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
             node_model.namespace_entry = entry
 
         elif namespace in graph.namespace_pattern:
-            name = node_data[NAME]
+            name = node[NAME]
             pattern = graph.namespace_pattern[namespace]
             entry = self.get_or_create_regex_namespace_entry(namespace, pattern, name)
 
@@ -1246,14 +1241,14 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
             node_model.namespace_entry = entry
 
         else:
-            log.warning("No reference in BELGraph for namespace: {}".format(node_data[NAMESPACE]))
+            log.warning('No reference in BELGraph for namespace: %s', node[NAMESPACE])
             return
 
-        if VARIANTS in node_data or FUSION in node_data:
+        if VARIANTS in node or FUSION in node:
             node_model.is_variant = True
-            node_model.has_fusion = FUSION in node_data
+            node_model.has_fusion = FUSION in node
 
-            modifications = self.get_or_create_modification(graph, node_data)
+            modifications = self.get_or_create_modifications(graph, node)
 
             if modifications is None:
                 log.warning('could not create %s because had an uncachable modification', bel)
@@ -1262,11 +1257,10 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
             node_model.modifications = modifications
 
         self.session.add(node_model)
-        self.object_cache_node[sha512] = node_model
         return node_model
 
     def drop_nodes(self):
-        """Drops all nodes in RDB"""
+        """Drop all nodes."""
         t = time.time()
 
         self.session.query(Node).delete()
@@ -1275,7 +1269,7 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
         log.info('dropped all nodes in %.2f seconds', time.time() - t)
 
     def drop_edges(self):
-        """Drops all edges in RDB"""
+        """Drop all edge."""
         t = time.time()
 
         self.session.query(Edge).delete()
@@ -1283,7 +1277,7 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
 
         log.info('dropped all edges in %.2f seconds', time.time() - t)
 
-    def get_or_create_edge(self, source, target, relation, bel, edge_hash, evidence=None, annotations=None,
+    def get_or_create_edge(self, source, target, relation, bel, sha512, evidence=None, annotations=None,
                            properties=None):
         """Creates entry for given edge if it does not exist.
 
@@ -1291,31 +1285,28 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
         :param Node target: Target node of the relation
         :param str relation: Type of the relation between source and target node
         :param str bel: BEL statement that describes the relation
-        :param str edge_hash: A hash of the edge
-        :param Evidence evidence: Evidence object that proves the given relation
-        :param list[Property] properties: List of all properties that belong to the edge
-        :param list[AnnotationEntry] annotations: List of all annotations that belong to the edge
+        :param str sha512: The SHA512 hash of the edge
+        :param Optional[Evidence] evidence: Evidence object that proves the given relation
+        :param Optional[list[Property]] properties: List of all properties that belong to the edge
+        :param Optional[list[AnnotationEntry]] annotations: List of all annotations that belong to the edge
         :rtype: Edge
         """
-        if edge_hash in self.object_cache_edge:
-            edge = self.object_cache_edge[edge_hash]
-            self.session.add(edge)
-            return edge
-
-        edge = self.get_edge_by_hash(edge_hash)
-
+        edge = self.object_cache_edge.get(sha512)
         if edge is not None:
-            self.object_cache_edge[edge_hash] = edge
             return edge
 
-        edge = Edge(
+        edge = self.get_edge_by_hash(sha512)
+        if edge is not None:
+            self.object_cache_edge[sha512] = edge
+            return edge
+
+        self.object_cache_edge[sha512] = edge = Edge(
             source=source,
             target=target,
             relation=relation,
             bel=bel,
-            sha512=edge_hash,
+            sha512=sha512,
         )
-
         if evidence is not None:
             edge.evidence = evidence
         if properties is not None:
@@ -1324,7 +1315,6 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
             edge.annotations = annotations
 
         self.session.add(edge)
-        self.object_cache_edge[edge_hash] = edge
         return edge
 
     def count_citations(self):
@@ -1401,9 +1391,9 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
         :param str name: An author's name
         :rtype: Author
         """
-        lower_name = name.casefold()
-        author = self.object_cache_author.get(lower_name)
+        lower_name = name.strip().casefold()
 
+        author = self.object_cache_author.get(lower_name)
         if author is not None:
             self.session.add(author)
             return author
@@ -1420,7 +1410,7 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
     def get_modification_by_hash(self, modification_hash):
         return self.session.query(Modification).filter(Modification.sha512 == modification_hash).one_or_none()
 
-    def get_or_create_modification(self, graph, node_data):
+    def get_or_create_modifications(self, graph, node_data):
         """Creates a list of modification objects (Modification) that belong to the node described by
         node_data.
 
