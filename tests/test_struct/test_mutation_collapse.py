@@ -5,7 +5,7 @@ import unittest
 from pybel import BELGraph
 from pybel.constants import DIRECTLY_INCREASES, INCREASES
 from pybel.dsl import protein
-from pybel.struct.mutation.collapse.inconsitent import pair_is_consistent
+from pybel.struct.mutation.collapse.inconsistent import pair_is_consistent
 
 
 class TestPredicateBuilders(unittest.TestCase):
