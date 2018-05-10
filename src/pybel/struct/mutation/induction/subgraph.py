@@ -80,9 +80,9 @@ def get_subgraph_by_neighborhood(graph, nodes):
     """
     result = graph.fresh_copy()
 
-    node_set = set(nodes)
+    nodes = set(nodes)
 
-    if all(node not in graph for node in node_set):
+    if all(node not in graph for node in nodes):
         return
 
     result.add_edges_from(graph.in_edges(nodes, keys=True, data=True))
