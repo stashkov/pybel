@@ -6,7 +6,9 @@ from ...constants import FUNCTION
 
 __all__ = [
     'function_inclusion_filter_builder',
+    'data_missing_key_builder',
 ]
+
 
 def _single_function_inclusion_filter_builder(func):
     def function_inclusion_filter(graph, node):
@@ -53,3 +55,24 @@ def function_inclusion_filter_builder(func):
         return _collection_function_inclusion_builder(func)
 
     raise ValueError('Invalid type for argument: {}'.format(func))
+
+
+def data_missing_key_builder(key):
+    """Builds a filter that passes only on nodes that don't have the given key in their data dictionary
+
+    :param str key: A key for the node's data dictionary
+    :return: A node filter (graph, node) -> bool
+    :rtype: types.FunctionType
+    """
+
+    def data_does_not_contain_key(graph, node):
+        """Passes only for a node that doesn't contain the enclosed key in its data dictionary
+
+        :param pybel.BELGraph graph: A BEL Graph
+        :param BaseEntity node: A BEL node
+        :return: If the node doesn't contain the enclosed key in its data dictionary
+        :rtype: bool
+        """
+        return key not in graph.nodes[node]
+
+    return data_does_not_contain_key
