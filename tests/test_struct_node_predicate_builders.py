@@ -19,5 +19,5 @@ class TestPredicateBuilders(unittest.TestCase):
 
         self.assertTrue(data_missing_key(graph, node), msg='Should not have any stuff in')
 
-        graph.nodes[node]['test'] = 714
+        graph.node[node]['test_key'] = 714
         self.assertFalse(data_missing_key(graph, node))

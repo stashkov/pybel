@@ -73,6 +73,6 @@ def data_missing_key_builder(key):
         :return: If the node doesn't contain the enclosed key in its data dictionary
         :rtype: bool
         """
-        return key not in graph.nodes[node]
+        return key not in graph.node[node]
 
     return data_does_not_contain_key
