@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 
-from ..filters import filter_edges
+from .subgraph import get_subgraph_by_edge_filter
 from ..filters.edge_predicates import is_causal_relation
-from ..graph import BELGraph
 from ..pipeline import mutator
 
 __all__ = [
@@ -24,24 +23,6 @@ def get_subgraph_by_induction(graph, nodes):
         return
 
     return graph.subgraph(nodes)
-
-
-@mutator
-def get_subgraph_by_edge_filter(graph, edge_predicates=None):
-    """Induces a subgraph on all edges that pass the given filters
-
-    :param pybel.BELGraph graph: A BEL graph
-    :param edge_predicates: A predicate or list of predicates (graph, node, node, key, data) -> bool
-    :type edge_predicates: (pybel.BELGraph, tuple, tuple, int) -> bool or list[(pybel.BELGraph, tuple, tuple, int) -> bool]
-    :return: A BEL subgraph induced over the edges passing the given filters
-    :rtype: pybel.BELGraph
-    """
-    result = BELGraph()
-
-    for u, v, key in filter_edges(graph, edge_predicates=edge_predicates):
-        result.add_edge(u, v, key=key, **graph.edge[u][v][key])
-
-    return result
 
 
 @mutator
