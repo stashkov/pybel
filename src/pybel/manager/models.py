@@ -3,6 +3,7 @@
 """This module contains the SQLAlchemy database models that support the definition cache and graph cache."""
 
 import datetime
+import hashlib
 
 from sqlalchemy import (
     Boolean, Column, Date, DateTime, ForeignKey, Integer, LargeBinary, String, Table, Text,
@@ -18,6 +19,7 @@ from ..dsl import (
     hgvs, mirna, missing_fusion_range, named_complex_abundance, pathology, pmod, protein, protein_fusion, reaction, rna,
     rna_fusion,
 )
+from ..utils import hash_citation
 from ..io.gpickle import from_bytes, to_bytes
 from ..utils import hash_edge
 
@@ -25,7 +27,6 @@ __all__ = [
     'Base',
     'Namespace',
     'NamespaceEntry',
-    'NamespaceEntryEquivalence',
     'Annotation',
     'AnnotationEntry',
     'Network',
@@ -40,8 +41,6 @@ __all__ = [
 
 NAMESPACE_TABLE_NAME = 'pybel_namespace'
 NAMESPACE_ENTRY_TABLE_NAME = 'pybel_namespaceEntry'
-NAMESPACE_EQUIVALENCE_TABLE_NAME = 'pybel_namespaceEquivalence'
-NAMESPACE_EQUIVALENCE_CLASS_TABLE_NAME = 'pybel_namespaceEquivalenceClass'
 NAMESPACE_HIERARCHY_TABLE_NAME = 'pybel_namespace_hierarchy'
 
 ANNOTATION_TABLE_NAME = 'pybel_annotation'
@@ -134,12 +133,10 @@ class Namespace(Base):
     citation_published = Column(Date, nullable=True)
     citation_url = Column(String(255), nullable=True)
 
-    # entries = relationship('NamespaceEntry', backref='namespace', cascade='all, delete-orphan')
-
-    has_equivalences = Column(Boolean, default=False)
+    entries = relationship('NamespaceEntry', lazy='dynamic', cascade='all, delete-orphan')
 
     def __str__(self):
-        return self.keyword
+        return '[{}]{}'.format(self.id, self.keyword)
 
     def to_values(self):
         """Returns this namespace as a dictionary of names to their encodings. Encodings are represented as a
@@ -198,10 +195,7 @@ class NamespaceEntry(Base):
     encoding = Column(String(8), nullable=True, doc='The biological entity types for which this name is valid')
 
     namespace_id = Column(Integer, ForeignKey('{}.id'.format(NAMESPACE_TABLE_NAME)), nullable=False, index=True)
-    namespace = relationship('Namespace', backref=backref('entries', lazy='dynamic'))
-
-    equivalence_id = Column(Integer, ForeignKey('{}.id'.format(NAMESPACE_EQUIVALENCE_CLASS_TABLE_NAME)), nullable=True)
-    equivalence = relationship('NamespaceEntryEquivalence', backref=backref('members'))
+    namespace = relationship(Namespace)
 
     children = relationship(
         'NamespaceEntry',
@@ -210,8 +204,12 @@ class NamespaceEntry(Base):
         secondaryjoin=(id == namespace_hierarchy.c.right_id),
     )
 
+    __table_args__ = (
+        UniqueConstraint(namespace_id, identifier),
+    )
+
     def __str__(self):
-        return '[{}]{}:{}'.format(self.namespace.id, self.namespace, self.name)
+        return '[{}]{}:[{}]{}'.format(self.namespace.id, self.namespace.keyword, self.identifier, self.name)
 
     def _as_dsl(self, fn, **kwargs):
         """
@@ -269,14 +267,6 @@ class NamespaceEntry(Base):
             result['id'] = self.id
 
         return result
-
-
-class NamespaceEntryEquivalence(Base):
-    """Represents the equivalance classes between entities"""
-    __tablename__ = NAMESPACE_EQUIVALENCE_CLASS_TABLE_NAME
-
-    id = Column(Integer, primary_key=True)
-    label = Column(String(255), nullable=False, unique=True, index=True)
 
 
 class Annotation(Base):
@@ -410,6 +400,7 @@ class Network(Base):
 
     name = Column(String(255), nullable=False, index=True, doc='Name of the given Network (from the BEL file)')
     version = Column(String(16), nullable=False, doc='Release version of the given Network (from the BEL file)')
+    sha512 = Column(String(255), nullable=True, index=True)
 
     authors = Column(Text, nullable=True, doc='Authors of the underlying BEL file')
     contact = Column(String(255), nullable=True, doc='Contact email from the underlying BEL file')
@@ -479,11 +470,12 @@ class Network(Base):
         return from_bytes(self.blob)
 
     def store_bel(self, graph):
-        """Inserts a bel graph
+        """Inserts a BEL graph and stores its hash
 
         :param pybel.BELGraph graph: A BEL Graph
         """
         self.blob = to_bytes(graph)
+        self.sha512 = hashlib.sha512(self.blob).hexdigest()
 
 
 node_modification = Table(
@@ -762,7 +754,26 @@ class Author(Base):
     __tablename__ = AUTHOR_TABLE_NAME
 
     id = Column(Integer, primary_key=True)
-    name = Column(String(255), nullable=False, unique=True, index=True)
+
+    sha512 = Column(String(255), index=True, unique=True, nullable=False)
+    name = Column(String(255), nullable=False, index=True, doc='The name of the author')
+
+    @staticmethod
+    def _hash_name(name):
+        return hashlib.sha512(name.casefold().encode('utf8')).hexdigest()
+
+    @staticmethod
+    def from_name(name):
+        """Makes an author model from the name and wraps hashing the name
+
+        :param str name: The name of the author
+        :rtype: Author
+        """
+        return Author(name=name, sha512=Author._hash_name(name))
+
+    @staticmethod
+    def filter_name(name):
+        return Author.sha512 == Author._hash_name(name)
 
     def __str__(self):
         return self.name
@@ -794,7 +805,7 @@ class Citation(Base):
     authors = relationship("Author", secondary=author_citation, backref='citations')
 
     __table_args__ = (
-        UniqueConstraint(CITATION_TYPE, CITATION_REFERENCE),
+        UniqueConstraint(type, reference),
     )
 
     def __str__(self):
@@ -815,6 +826,10 @@ class Citation(Base):
         :rtype:
         """
         return self.title is not None and self.name is not None
+
+    @staticmethod
+    def filter_reference(reference_type, reference):
+        return Citation.sha512 == hash_citation(type=reference_type, reference=reference)
 
     def to_json(self, include_id=False):
         """Creates a citation dictionary that is used to recreate the edge data dictionary of a :class:`BELGraph`.
@@ -866,12 +881,12 @@ class Evidence(Base):
     __tablename__ = EVIDENCE_TABLE_NAME
 
     id = Column(Integer, primary_key=True)
+
     text = Column(Text, nullable=False, doc='Supporting text from a given publication')
+    sha512 = Column(String(255), index=True, nullable=False)
 
     citation_id = Column(Integer, ForeignKey('{}.id'.format(CITATION_TABLE_NAME)), nullable=False)
     citation = relationship('Citation', backref=backref('evidences'))
-
-    sha512 = Column(String(255), index=True)
 
     def __str__(self):
         return '{}:{}'.format(self.citation, self.text)
@@ -916,7 +931,7 @@ class Edge(Base):
     id = Column(Integer, primary_key=True)
 
     bel = Column(Text, nullable=False, doc='Valid BEL statement that represents the given edge')
-    relation = Column(String(255), nullable=False)
+    relation = Column(String(255), nullable=False, index=True)
 
     source_id = Column(Integer, ForeignKey('{}.id'.format(NODE_TABLE_NAME)), nullable=False)
     source = relationship('Node', foreign_keys=[source_id],

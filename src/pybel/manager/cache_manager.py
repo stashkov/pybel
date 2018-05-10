@@ -10,12 +10,11 @@ enable this option, but can specify a database location if they choose.
 from __future__ import unicode_literals
 
 import logging
+import time
 from collections import defaultdict
 from copy import deepcopy
 from itertools import chain, groupby
 
-import six
-import time
 from sqlalchemy import and_, exists, func
 from tqdm import tqdm
 
@@ -24,7 +23,7 @@ from .exc import EdgeAddError
 from .lookup_manager import LookupManager
 from .models import (
     Annotation, AnnotationEntry, Author, Citation, Edge, Evidence, Modification, Namespace,
-    NamespaceEntry, NamespaceEntryEquivalence, Network, Node, Property,
+    NamespaceEntry, Network, Node, Property,
 )
 from .query_manager import QueryManager
 from .utils import extract_shared_optional, extract_shared_required, parse_owl, update_insert_values
@@ -713,94 +712,6 @@ class OwlAnnotationManager(AnnotationManager):
         return annotation.to_tree_list()
 
 
-class EquivalenceManager(NamespaceManager):
-    """Manages BEL equivalences"""
-
-    def drop_equivalences(self):
-        """Drops all equivalence classes"""
-        self.session.query(NamespaceEntryEquivalence).delete()
-        self.session.commit()
-
-    def get_equivalence_by_label(self, label):
-        """Gets an equivalence class by its label.
-
-        :param str label: the label of the equivalence class. example: '0b20937b-5eb4-4c04-8033-63b981decce7'
-                                    for Alzheimer's Disease
-        :rtype: NamespaceEntryEquivalence
-        """
-        return self.session.query(NamespaceEntryEquivalence).filter(NamespaceEntryEquivalence.label == label).one()
-
-    def ensure_equivalence_class(self, label):
-        """Ensures the equivalence class is loaded in the database"""
-        result = self.session.query(NamespaceEntryEquivalence).filter_by(label=label).one_or_none()
-
-        if result is None:
-            result = NamespaceEntryEquivalence(label=label)
-            self.session.add(result)
-            self.session.commit()
-
-        return result
-
-    def insert_equivalences(self, equivalence_url, namespace_url):
-        """Given a url to a .beleq file and its accompanying namespace url, populate the database
-
-        :param str equivalence_url:
-        :param str namespace_url:
-        :raises: pybel.resources.exc.ResourceError
-        """
-        namespace = self.ensure_namespace(namespace_url)
-
-        if not isinstance(namespace, Namespace):
-            raise ValueError("Can't insert equivalences for non-cachable namespace")
-
-        equivalence_resource = get_bel_resource(equivalence_url)
-        values = equivalence_resource['Values']
-
-        for entry in namespace.entries:
-            label = values[entry.name]
-            entry.equivalence = self.ensure_equivalence_class(label=label)
-
-        namespace.has_equivalences = True
-
-        log.info('inserted equivalences: %s (%d terms)', equivalence_url, len(values))
-
-        self.session.commit()
-
-    def ensure_equivalences(self, url, namespace_url):
-        """Check if the equivalence file is already loaded, and if not, load it
-
-        :param str url: The URL of the equivalence file corresponding to the namespace file
-        :param str namespace_url: The URL of the namespace file
-        :raises: pybel.resources.exc.ResourceError
-        """
-        self.ensure_namespace(namespace_url)
-
-        ns = self.get_namespace_by_url(namespace_url)
-
-        if not ns.has_equivalences:
-            self.insert_equivalences(url, namespace_url)
-
-    def get_equivalence_by_entry(self, url, name):
-        """Gets the equivalence class of the entry in the given namespace
-
-        :param str url: The url of the namespace source
-        :param str name: The value of the namespace from the given url's document
-        :rtype: NamespaceEntryEquivalence
-        """
-        entry = self.get_namespace_entry(url, name)
-        return entry.equivalence
-
-    def get_equivalence_members(self, label):
-        """Gets all members of the given equivalence class
-
-        :param str label: the label of the equivalence class. example: '0b20937b-5eb4-4c04-8033-63b981decce7'
-                                    for Alzheimer's Disease
-        :rtype: list[NamespaceEntry]
-        """
-        eq = self.get_equivalence_by_label(label)
-        return eq.members
-
-
 class NetworkManager(NamespaceManager, AnnotationManager):
     """Groups functions for inserting and querying networks in the database's network store."""
 
@@ -1108,7 +1019,7 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
                 except Exception as e:
                     self.session.rollback()
                     log.exception('error storing edge in database. edge data: %s', data)
-                    six.raise_from(EdgeAddError(e, u, v, data), e)
+                    raise EdgeAddError(e, u, v, data) from e
 
             elif EVIDENCE not in data or CITATION not in data:
                 continue
@@ -1122,7 +1033,7 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
                 except Exception as e:
                     self.session.rollback()
                     log.exception('error storing edge in database. edge data: %s', data)
-                    six.raise_from(EdgeAddError(e, u, v, data), e)
+                    raise EdgeAddError(e, u, v, data) from e
 
         log.debug('stored edges in %.2f seconds', time.time() - t)
 
@@ -1425,8 +1336,7 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
             self.session.add(citation)
             return citation
 
-        citation = self.get_citation_by_hash(citation_hash)
-
+        citation = self.get_citation_by_reference(type, reference)
         if citation is not None:
             self.object_cache_citation[citation_hash] = citation
             return citation
@@ -1451,7 +1361,7 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
             citation.last = self.get_or_create_author(last)
 
         if authors is not None:
-            for author in (authors.split('|') if isinstance(authors, six.string_types) else authors):
+            for author in (authors.split('|') if isinstance(authors, str) else authors):
                 author_model = self.get_or_create_author(author)
                 if author_model not in citation.authors:
                     citation.authors.append(author_model)
@@ -1466,19 +1376,19 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
         :param str name: An author's name
         :rtype: Author
         """
-        author = self.object_cache_author.get(name)
+        lower_name = name.casefold()
+        author = self.object_cache_author.get(lower_name)
 
         if author is not None:
             self.session.add(author)
             return author
 
         author = self.get_author_by_name(name)
-
         if author is not None:
-            self.object_cache_author[name] = author
+            self.object_cache_author[lower_name] = author
             return author
 
-        author = self.object_cache_author[name] = Author(name=name)
+        author = self.object_cache_author[lower_name] = Author.from_name(name)
         self.session.add(author)
         return author
 
@@ -1737,8 +1647,7 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
         ]
 
 
-class Manager(QueryManager, InsertManager, NetworkManager, EquivalenceManager, OwlNamespaceManager,
-              OwlAnnotationManager):
+class Manager(QueryManager, InsertManager, NetworkManager, OwlNamespaceManager, OwlAnnotationManager):
     """The definition cache manager takes care of storing BEL namespace and annotation files for later use. It uses
     SQLite by default for speed and lightness, but any database can be used with its SQLAlchemy interface.
     """
@@ -1754,7 +1663,7 @@ class Manager(QueryManager, InsertManager, NetworkManager, EquivalenceManager, O
         :param dict kwargs: Keyword arguments to pass to the constructor of :class:`Manager`
         :rtype: Manager
         """
-        if connection is None or isinstance(connection, six.string_types):
+        if connection is None or isinstance(connection, str):
             return Manager(connection=connection, *args, **kwargs)
 
         return connection

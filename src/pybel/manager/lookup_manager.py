@@ -24,9 +24,6 @@ class LookupManager(BaseManager):
         :param BaseEntity node: A PyBEL node data dictionary
         :rtype: Optional[Node]
         """
-        if not isinstance(node, BaseEntity):
-            raise TypeError('object is not BaseEntity: {} {}'.format(node.__class__.__name__, node))
-
         return self.get_node_by_hash(node.as_sha512())
 
     def get_edge_by_hash(self, edge_hash):
@@ -44,8 +41,7 @@ class LookupManager(BaseManager):
         :param str reference: The identifier in the source (e.g., PubMed identifier)
         :rtype: Optional[Citation]
         """
-        citation_hash = hash_citation(type=type, reference=reference)
-        return self.get_citation_by_hash(citation_hash)
+        return self.session.query(Citation).filter(Citation.filter_reference(type, reference)).one_or_none()
 
     def get_citation_by_pmid(self, pubmed_identifier):
         """Gets a citation object by its PubMed identifier
@@ -53,7 +49,7 @@ class LookupManager(BaseManager):
         :param str pubmed_identifier: The PubMed identifier
         :rtype: Optional[Citation]
         """
-        return self.get_citation_by_reference(reference=pubmed_identifier, type=CITATION_TYPE_PUBMED)
+        return self.get_citation_by_reference(type=CITATION_TYPE_PUBMED, reference=pubmed_identifier)
 
     def get_citation_by_hash(self, citation_hash):
         """Gets a citation object by its hash
@@ -69,7 +65,7 @@ class LookupManager(BaseManager):
         :param str name: An author's name
         :rtype: Optional[Author]
         """
-        return self.session.query(Author).filter(Author.name == name).one_or_none()
+        return self.session.query(Author).filter(Author.filter_name(name)).one_or_none()
 
     def get_evidence_by_hash(self, evidence_hash):
         """Looks up evidence by its hash

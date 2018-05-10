@@ -4,10 +4,9 @@
 
 import logging
 import re
+import time
 from collections import Counter, defaultdict
 
-import six
-import time
 from pyparsing import ParseException
 from sqlalchemy.exc import OperationalError
 from tqdm import tqdm
@@ -106,7 +105,7 @@ def parse_document(graph, document_metadata, metadata_parser):
             graph.add_warning(line_number, line, e)
         except Exception as e:
             parse_log.exception('Line %07d - Critical Failure - %s', line_number, line)
-            six.raise_from(MalformedMetadataException(line_number, line), e)
+            raise MalformedMetadataException(line_number, line) from e
 
     for required in REQUIRED_METADATA:
         required_metadatum = metadata_parser.document_metadata.get(required)
@@ -151,7 +150,7 @@ def parse_definitions(graph, definitions, metadata_parser, allow_failures=False)
         except Exception as e:
             if not allow_failures:
                 parse_log.warning('Line %07d - Critical Failure - %s', line_number, line)
-                six.raise_from(MalformedMetadataException(line_number, line), e)
+                raise MalformedMetadataException(line_number, line) from e
 
     graph.namespace_url.update(metadata_parser.namespace_url_dict)
     graph.namespace_owl.update(metadata_parser.namespace_owl_dict)

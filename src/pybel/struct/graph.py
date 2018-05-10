@@ -7,7 +7,6 @@ import warnings
 from copy import deepcopy
 
 import networkx as nx
-import six
 
 from ..canonicalize import edge_to_bel
 from ..constants import *
@@ -564,7 +563,7 @@ class BELGraph(nx.MultiDiGraph):
             EVIDENCE: evidence,
         }
 
-        if isinstance(citation, six.string_types):
+        if isinstance(citation, str):
             attr[CITATION] = {
                 CITATION_TYPE: CITATION_TYPE_PUBMED,
                 CITATION_REFERENCE: citation

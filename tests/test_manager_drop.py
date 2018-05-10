@@ -118,6 +118,30 @@ class TestCascades(TemporaryCacheMixin):
     def test_drop_property(self):
         """Don't let this happen"""
 
+    def test_drop_namespace_cascade(self):
+        keyword, url = n(), n()
+
+        namespace = Namespace(keyword=keyword, url=url)
+        self.manager.session.add(namespace)
+
+        n_entries = 5
+
+        for _ in range(n_entries):
+            entry = NamespaceEntry(name=n(), namespace=namespace)
+            self.manager.session.add(entry)
+
+        self.manager.session.commit()
+
+        self.assertEqual(1, self.manager.count_namespaces(), msg='Should have one namespace')
+        self.assertEqual(n_entries, self.manager.count_namespace_entries(),
+                         msg='Should have {} entries'.format(n_entries))
+
+        self.manager.session.delete(namespace)
+        self.manager.session.commit()
+
+        self.assertEqual(0, self.manager.count_namespaces(), msg='Should have no namespaces')
+        self.assertEqual(0, self.manager.count_namespace_entries(), msg='Entries should have been dropped')
+
     def test_drop_namespace(self):
         keyword, url = n(), n()
 

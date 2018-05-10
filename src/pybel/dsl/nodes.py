@@ -67,8 +67,7 @@ def _hash_node(node_tuple):
     return _hash_tuple(node_tuple)
 
 
-@six.add_metaclass(abc.ABCMeta)
-class BelConvertable(dict):
+class BelConvertable(dict, metaclass=abc.ABCMeta):
     def __init__(self, *args, **kwargs):
         super(BelConvertable, self).__init__(*args, **kwargs)
         self._bel = None

@@ -146,8 +146,8 @@ class TestCitations(TemporaryCacheMixin):
         x = self.manager.get_citation_by_pmid(pmid_1)
         self.assertEqual(u'Martínez-Guillén JR', x.first.name)
 
-        self.assertIn(g1, self.manager.object_cache_author)
-        self.assertIn(g2, self.manager.object_cache_author)
+        self.assertIn(g1.casefold(), self.manager.object_cache_author)
+        self.assertIn(g2.casefold(), self.manager.object_cache_author)
 
         a1 = self.manager.get_author_by_name(g1)
         self.assertEqual(g1, a1.name)

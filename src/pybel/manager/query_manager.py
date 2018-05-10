@@ -3,7 +3,6 @@
 import datetime
 from collections import Iterable
 
-import six
 from sqlalchemy import and_, func, or_
 
 from .lookup_manager import LookupManager
@@ -154,7 +153,7 @@ class QueryManager(LookupManager):
             query = self._add_edge_function_filter(query, Edge.target_id, target_function)
 
         if source:
-            if isinstance(source, six.string_types):
+            if isinstance(source, str):
                 source = self.query_nodes(bel=source)
                 if len(source) == 0:
                     return []
@@ -166,7 +165,7 @@ class QueryManager(LookupManager):
                 raise TypeError('Invalid type of {}: {}'.format(source, source.__class__.__name__))
 
         if target:
-            if isinstance(target, six.string_types):
+            if isinstance(target, str):
                 targets = self.query_nodes(bel=target)
                 target = targets[0]  # FIXME what if this matches multiple?
                 query = query.filter(Edge.target == target)
@@ -193,7 +192,7 @@ class QueryManager(LookupManager):
 
         if author is not None:
             query = query.join(Author, Citation.authors)
-            if isinstance(author, six.string_types):
+            if isinstance(author, str):
                 query = query.filter(Author.name.like(author))
             elif isinstance(author, Iterable):
                 query = query.filter(Author.name.in_(set(author)))
@@ -213,7 +212,7 @@ class QueryManager(LookupManager):
         if date:
             if isinstance(date, datetime.date):
                 query = query.filter(Citation.date == date)
-            elif isinstance(date, six.string_types):
+            elif isinstance(date, str):
                 query = query.filter(Citation.date == parse_datetime(date))
 
         if evidence_text:

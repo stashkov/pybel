@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import six
-
 from ...pipeline import in_place_mutator
 from ....constants import FUNCTION, MIRNA, NAMESPACE, PROTEIN, RNA, VARIANTS
 
@@ -29,7 +27,7 @@ def infer_central_dogmatic_translations_by_namespace(graph, namespaces):
     :param pybel.BELGraph graph: A BEL graph
     :param str or iter[str] namespaces: The namespaces over which to do this
     """
-    namespaces = {namespaces} if isinstance(namespaces, six.string_types) else set(namespaces)
+    namespaces = {namespaces} if isinstance(namespaces, str) else set(namespaces)
 
     for node in list(graph):
         if node[FUNCTION] != PROTEIN:

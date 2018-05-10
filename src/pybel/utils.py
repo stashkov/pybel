@@ -7,7 +7,6 @@ from collections import Iterable, MutableMapping, defaultdict
 from datetime import datetime
 
 import networkx as nx
-import six
 
 from .constants import (
     ANNOTATIONS, CITATION, CITATION_AUTHORS, CITATION_ENTRIES, CITATION_REFERENCE, CITATION_TYPE,
@@ -121,7 +120,7 @@ def citation_dict_to_tuple(citation):  # FIXME throw away everything except type
     if all(x in citation for x in CITATION_ENTRIES[3:5]):
         ff = tuple(citation[x] for x in CITATION_ENTRIES[:4])
 
-        if isinstance(citation[CITATION_AUTHORS], six.string_types):
+        if isinstance(citation[CITATION_AUTHORS], str):
             return ff + (citation[CITATION_AUTHORS],)
         else:
             return ff + ('|'.join(citation[CITATION_AUTHORS]),)
@@ -299,9 +298,9 @@ def subdict_matches(target, query, partial_match=True):
     for k, v in query.items():
         if k not in target:
             return False
-        elif not isinstance(v, (int, six.string_types, dict, Iterable)):
+        elif not isinstance(v, (int, str, dict, Iterable)):
             raise ValueError('invalid value: {}'.format(v))
-        elif isinstance(v, (int, six.string_types)) and target[k] != v:
+        elif isinstance(v, (int, str)) and target[k] != v:
             return False
         elif isinstance(v, dict):
             if partial_match:
