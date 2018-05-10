@@ -1,15 +1,12 @@
 # -*- coding: utf-8 -*-
 
-import os
 import unittest
 
 import networkx as nx
 
 from pybel.resources.document import sanitize_file_lines
 from pybel.utils import ensure_quotes, subdict_matches
-from tests.constants import any_subdict_matches
-
-dir_path = os.path.dirname(os.path.realpath(__file__))
+from tests.constants import any_subdict_matches, test_bel_simple
 
 
 class TestSubdictMatching(unittest.TestCase):
@@ -195,9 +192,7 @@ in the SIN1-/- cells (Figure 5A)."'''.split('\n')
         self.assertEqual(expect, result)
 
     def test_e(self):
-        path = os.path.join(dir_path, 'bel', 'test_bel.bel')
-
-        with open(path) as f:
+        with open(test_bel_simple) as f:
             lines = list(sanitize_file_lines(f))
 
         self.assertEqual(26, len(lines))
