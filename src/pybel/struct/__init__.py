@@ -11,17 +11,15 @@ Convenient property definitions are given for these attributes.
 
 """
 
-from . import filters, graph, mutation, selection, summary
+from . import filters, graph, mutation, summary
 from .filters import *
 from .graph import *
 from .mutation import *
-from .selection import *
 from .summary import *
 
 __all__ = (
     graph.__all__ +
     filters.__all__ +
     mutation.__all__ +
-    selection.__all__ +
     summary.__all__
 )

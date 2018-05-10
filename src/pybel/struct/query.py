@@ -8,8 +8,8 @@ import numpy as np
 
 from .exc import QueryMissingNetworksError
 from .graph import union
+from .mutation import get_subgraph
 from .pipeline import Pipeline
-from .selection.subgraph import get_subgraph
 from ..constants.induce_subgraph_keys import (
     NONNODE_SEED_TYPES, SEED_TYPE_ANNOTATION, SEED_TYPE_INDUCTION, SEED_TYPE_NEIGHBORS, SEED_TYPE_SAMPLE,
 )

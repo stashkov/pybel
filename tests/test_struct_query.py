@@ -19,12 +19,12 @@ from pybel.examples.homology_example import (
     mouse_mapk1_protein, mouse_mapk1_rna,
 )
 from pybel.examples.sialic_acid_example import dap12, shp1, shp2, sialic_acid_graph, syk, trem2
+from pybel.struct import get_subgraph_by_annotation_value
 from pybel.struct.mutation import infer_central_dogma
 from pybel.struct.mutation.collapse import collapse_by_central_dogma_to_genes
 from pybel.struct.mutation.expansion import expand_internal
 from pybel.struct.pipeline import Pipeline
 from pybel.struct.query import Query
-from pybel.struct.selection import get_subgraph_by_annotation_value
 from tests.struct_mocks import MockQueryManager
 
 log = logging.getLogger(__name__)

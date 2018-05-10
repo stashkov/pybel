@@ -2,9 +2,9 @@
 
 import logging
 
-from ..graph import BELGraph
-from ..pipeline import mutator
-from ...constants import CAUSAL_RELATIONS, RELATION
+from ...graph import BELGraph
+from ...pipeline import mutator
+from ....constants import CAUSAL_RELATIONS, RELATION
 
 __all__ = [
     'get_upstream_causal_subgraph',

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
 from .subgraph import get_subgraph_by_edge_filter
-from ..filters.edge_predicates import is_causal_relation
-from ..pipeline import mutator
+from ...filters.edge_predicates import is_causal_relation
+from ...pipeline import mutator
 
 __all__ = [
     'get_subgraph_by_induction',

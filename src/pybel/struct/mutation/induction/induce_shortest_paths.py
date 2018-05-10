@@ -8,8 +8,8 @@ import networkx as nx
 from networkx import all_shortest_paths
 
 from .induce import get_subgraph_by_induction
-from ..pipeline import mutator
-from ...constants import FUNCTION, PATHOLOGY
+from ...pipeline import mutator
+from ....constants import FUNCTION, PATHOLOGY
 
 log = logging.getLogger(__name__)
 
