@@ -3,10 +3,10 @@
 import logging
 import os
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
-import time
 from six import BytesIO, StringIO
 
 from pybel import (
@@ -143,6 +143,7 @@ class TestExampleInterchange(unittest.TestCase):
         ndex_client = build_ndex_client()
         ndex_client.delete_network(network_id)
 
+
 class TestInterchange(TemporaryCacheClsMixin, BelReconstitutionMixin):
     @classmethod
     def setUpClass(cls):
@@ -231,7 +232,7 @@ class TestInterchange(TemporaryCacheClsMixin, BelReconstitutionMixin):
         reconstituted = from_cx_jsons(to_cx_jsons(self.thorough_graph))
         self.bel_thorough_reconstituted(reconstituted, check_warnings=False)
 
-    @unittest.skipUnless(NDEX_USERNAME in os.environ and NDEX_PASSWORD in os.environ, 'Need NDEx credentials')
+    @unittest.skip
     def test_thorough_ndex(self):
         """Tests that a document can be uploaded and downloaded. Sleeps in the middle so that NDEx can process"""
         network_id = to_ndex(self.thorough_graph)
