@@ -31,7 +31,6 @@ INSTALL_REQUIRES = [
     'requests',
     'requests_file',
     'pyparsing',
-    'six',
     'tqdm',
 ]
 

@@ -4,7 +4,6 @@ click
 requests
 requests_file
 pyparsing
-six
 tqdm
 
 # Extras
