@@ -27,6 +27,9 @@ matrix:
         - env: TOXENV=docs
         - env: TOXENV=manifest
         - env: TOXENV=rst-lint
+        - env: TOXENV=flake8
+    allow_failures:
+        - env: TOXENV=flake8
 
 before_script:
   - sh -c "if [ '$DB' = 'postgres' ]; then psql -c 'DROP DATABASE IF EXISTS tests;' -U postgres; fi"
