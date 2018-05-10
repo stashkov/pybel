@@ -1,21 +1,17 @@
 Overview
 ========
-
 Background on Systems Biology Modelling
 ---------------------------------------
-
 Biological Expression Language (BEL)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Biological Expression Language (BEL) is a domain specific language that enables the expression of complex molecular
 relationships and their context in a machine-readable form. Its simple grammar and expressive power have led to its
-successful use in the `IMI <https://www.imi.europa.eu/>`_ project, `AETIONOMY <http://www.aetionomy.eu/>`_, to describe
-complex disease networks with several thousands of relationships. For a detailed explanation, see the
-BEL `1.0 <http://openbel.org/language/version_1.0/bel_specification_version_1.0.html>`_ and
+successful use to describe complex disease networks with several thousands of relationships. For a detailed explanation,
+see the BEL `1.0 <http://openbel.org/language/version_1.0/bel_specification_version_1.0.html>`_ and
 `2.0 <http://openbel.org/language/version_2.0/bel_specification_version_2.0.html>`_ specifications.
 
 OpenBEL Links
 ~~~~~~~~~~~~~
-
 - OpenBEL on `Google Groups <https://groups.google.com/forum/#!forum/openbel-discuss>`_
 - OpenBEL `Wiki <https://wiki.openbel.org/>`_
 - OpenBEL on `GitHub <https://github.com/OpenBEL>`_
@@ -38,7 +34,6 @@ This code has not been maintained to reflect the changes in the underlying resou
 forked and updated at https://github.com/pybel/resource-generator to reflect the most recent versions of the underlying
 namespaces. The files are now distributed using the Fraunhofer SCAI
 `Artifactory server <https://arty.scai.fraunhofer.de/artifactory/bel/>`_.
-
 
 Generating New Namespaces
 ~~~~~~~~~~~~~~~~~~~~~~~~~

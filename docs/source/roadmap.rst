@@ -1,6 +1,5 @@
 Roadmap
 =======
-
 This project road map documents not only the PyBEL repository, but the PyBEL Tools and PyBEL Web repositories
 as well as the Bio2BEL project.
 
@@ -46,7 +45,6 @@ PyBEL Tools
     - SST
 - Development of new algorithms
     - Heat diffusion algorithms
-    - AETIONOMY Workflow 1 (Drug Repurposing)
     - Cart Before the Horse
 - Metapath analysis
 - Reasoning and inference rules
