@@ -1008,7 +1008,7 @@ def union(graphs):
     if n_networks == 1:
         return graphs[0]  # FIXME need to copy
 
-    rv = BELGraph()
+    rv = graphs[0].fresh_copy()
 
     for graph in graphs:
         _left_full_node_join(rv, graph)
@@ -1037,7 +1037,7 @@ def left_node_intersection_join(g, h):
     g_inter = g.subgraph(intersecting_nodes)
     h_inter = h.subgraph(intersecting_nodes)
 
-    rv = BELGraph()
+    rv = g.fresh_copy()
 
     g_index = _index_nanopubs(g_inter)
     h_index = _index_nanopubs(h_inter)

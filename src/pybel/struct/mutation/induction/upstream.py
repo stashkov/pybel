@@ -2,7 +2,6 @@
 
 import logging
 
-from ...graph import BELGraph
 from ...pipeline import mutator
 from ....constants import CAUSAL_RELATIONS, RELATION
 
@@ -21,7 +20,7 @@ def get_upstream_causal_subgraph(graph, nbunch):
     :param BaseEntity or iter[BaseEntity] nbunch: A BEL node or iterable of BEL nodes
     :rtype: pybel.BELGraph
     """
-    rv = BELGraph()
+    rv = graph.fresh_copy()
     rv.add_edges_from(
         (u, v, key, data)
         for u, v, key, data in graph.in_edges(nbunch, keys=True, data=True)
