@@ -10,6 +10,7 @@ from ...constants import (
 )
 
 __all__ = [
+    'node_predicate',
     'keep_node_permissive',
     'is_abundance',
     'is_gene',
