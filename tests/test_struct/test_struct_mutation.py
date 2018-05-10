@@ -24,13 +24,14 @@ class TestMutations(unittest.TestCase):
     def test_strip_annotations(self):
         u = protein(namespace='HGNC', name='U')
         v = protein(namespace='HGNC', name='V')
+        w = protein(namespace='HGNC', name='W')
 
         annotations = {
             'A': {'B': True}
         }
 
         graph = BELGraph()
-        key = graph.add_qualified_edge(
+        key_u_v = graph.add_qualified_edge(
             u,
             v,
             relation=INCREASES,
@@ -39,11 +40,21 @@ class TestMutations(unittest.TestCase):
             annotations=annotations,
         )
 
-        self.assertIn(ANNOTATIONS, graph[u][v][key])
+        key_v_w = graph.add_qualified_edge(
+            v,
+            w,
+            relation=INCREASES,
+            citation='123456',
+            evidence='Fake',
+        )
 
-        self.assertEqual(annotations, graph.get_edge_annotations(u, v, key))
+        self.assertIn(ANNOTATIONS, graph[u][v][key_u_v])
+        self.assertNotIn(ANNOTATIONS, graph[v][w][key_v_w])
+
+        self.assertEqual(annotations, graph.get_edge_annotations(u, v, key_u_v))
         strip_annotations(graph)
-        self.assertNotIn(ANNOTATIONS, graph[u][v][key])
+        self.assertNotIn(ANNOTATIONS, graph[u][v][key_u_v])
+        self.assertNotIn(ANNOTATIONS, graph[v][w][key_v_w])
 
     def test_expand_upstream_causal_subgraph(self):
         a, b, c, d, e, f = [protein(namespace='test', name=str(i)) for i in range(6)]
