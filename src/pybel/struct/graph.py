@@ -411,8 +411,9 @@ class BELGraph(nx.MultiDiGraph):
     def add_transcription(self, u, v):
         """Adds a transcription relation from a gene to an RNA or miRNA node
 
-        :param BaseEntity u: Either a PyBEL node tuple or PyBEL node data dictionary representing the source node
-        :param BaseEntity v: Either a PyBEL node tuple or PyBEL node data dictionary representing the target node
+        :param gene u: Either a PyBEL node tuple or PyBEL node data dictionary representing the source node
+        :param v: Either a PyBEL node tuple or PyBEL node data dictionary representing the target node
+        :type v: rna or mirna
         :rtype: str
         """
         return self.add_unqualified_edge(u, v, TRANSCRIBED_TO)
@@ -420,8 +421,8 @@ class BELGraph(nx.MultiDiGraph):
     def add_translation(self, u, v):
         """Adds a translation relation from a RNA to a protein
 
-        :param BaseEntity u: Either a PyBEL node tuple or PyBEL node data dictionary representing the source node
-        :param BaseEntity v: Either a PyBEL node tuple or PyBEL node data dictionary representing the target node
+        :param rna u: Either a PyBEL node tuple or PyBEL node data dictionary representing the source node
+        :param protein v: Either a PyBEL node tuple or PyBEL node data dictionary representing the target node
         :rtype: str
         """
         return self.add_unqualified_edge(u, v, TRANSLATED_TO)

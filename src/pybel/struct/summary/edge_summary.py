@@ -11,6 +11,7 @@ __all__ = [
     'iter_annotation_value_pairs',
     'iter_annotation_values',
     'get_annotation_values_by_annotation',
+    'get_annotations',
 ]
 
 
@@ -64,3 +65,27 @@ def get_annotation_values_by_annotation(graph):
     :rtype: dict[str, set[str]]
     """
     return _group_dict_set(iter_annotation_value_pairs(graph))
+
+
+def _annotation_iter_helper(graph):
+    """Iterates over the annotation keys
+
+    :param pybel.BELGraph graph:
+    :rtype: iter[str]
+    """
+    return (
+        key
+        for _, _, data in graph.edges(data=True)
+        if ANNOTATIONS in data
+        for key in data[ANNOTATIONS]
+    )
+
+
+def get_annotations(graph):
+    """Gets the set of annotations used in the graph
+
+    :param pybel.BELGraph graph: A BEL graph
+    :return: A set of annotation keys
+    :rtype: set[str]
+    """
+    return set(_annotation_iter_helper(graph))

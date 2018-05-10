@@ -359,6 +359,16 @@ class NamespaceManager(BaseManager):
 
         return result[0]
 
+    def get_namespace_entry_by_id(self, url, identifier):
+        """Gets a given NamespaceEntry object.
+
+        :param str url: The url of the namespace source
+        :param str identifier: The namespace's identifier (not dtabase identifier)
+        :rtype: Optional[NamespaceEntry]
+        """
+        entry_filter = and_(Namespace.url == url, NamespaceEntry.identifier == identifier)
+        return self.session.query(NamespaceEntry).join(Namespace).filter(entry_filter).one_or_none()
+
     def get_or_create_regex_namespace_entry(self, namespace, pattern, name):
         """Gets a namespace entry from a regular expression. Need to commit after!
 
@@ -728,6 +738,13 @@ class NetworkManager(NamespaceManager, AnnotationManager):
         :rtype: list[Network]
         """
         return self.session.query(Network).all()
+
+    def list_edges(self):
+        """Lists all edges in the cache
+
+        :rtype: list[Edge]
+        """
+        return self.session.query(Edge).all()
 
     # FIXME there must be a better way to do this on the server without getting problems with logical inconsistencies
     def list_recent_networks(self):
@@ -1202,8 +1219,16 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
 
         elif namespace in graph.namespace_url:
             url = graph.namespace_url[namespace]
-            name = node_data[NAME]
-            entry = self.get_namespace_entry(url, name)
+            name = node_data.get(NAME)
+            identifier = node_data.get(IDENTIFIER)
+
+            if identifier is not None:
+                entry = self.get_namespace_entry_by_id(url, identifier)
+            elif name is not None:
+                entry = self.get_namespace_entry(url, name)
+            else:
+                entry = None
+
 
             if entry is None:
                 log.debug('skipping node with identifier %s: %s', url, name)
