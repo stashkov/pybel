@@ -15,12 +15,12 @@ PYBEL_MINIMUM_IMPORT_VERSION = 0, 11, 0
 BELFRAMEWORK_DOMAIN = 'http://resource.belframework.org'
 OPENBEL_DOMAIN = 'http://resources.openbel.org'
 
-SMALL_CORPUS_URL = OPENBEL_DOMAIN + '/belframework/20150611/knowledge/small_corpus.bel'
-LARGE_CORPUS_URL = OPENBEL_DOMAIN + '/belframework/20150611/knowledge/large_corpus.bel'
+SMALL_CORPUS_URL = f'{OPENBEL_DOMAIN}/belframework/20150611/knowledge/small_corpus.bel'
+LARGE_CORPUS_URL = f'{OPENBEL_DOMAIN}/belframework/20150611/knowledge/large_corpus.bel'
 
 FRAUNHOFER_RESOURCES = 'https://owncloud.scai.fraunhofer.de/index.php/s/JsfpQvkdx3Y5EMx/download?path='
-OPENBEL_NAMESPACE_RESOURCES = OPENBEL_DOMAIN + '/belframework/20150611/namespace/'
-OPENBEL_ANNOTATION_RESOURCES = OPENBEL_DOMAIN + '/belframework/20150611/annotation/'
+OPENBEL_NAMESPACE_RESOURCES = f'{OPENBEL_DOMAIN}/belframework/20150611/namespace/'
+OPENBEL_ANNOTATION_RESOURCES = f'{OPENBEL_DOMAIN}/belframework/20150611/annotation/'
 
 #: GOCC is the only namespace that needs to be stored because translocations use some of its values by default
 GOCC_LATEST = 'https://arty.scai.fraunhofer.de/artifactory/bel/namespace/go-cellular-component/go-cellular-component-20170511.belns'
