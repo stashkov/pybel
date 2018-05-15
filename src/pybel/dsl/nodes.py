@@ -3,10 +3,9 @@
 import abc
 import hashlib
 import pickle
+from functools import total_ordering
 
-import six
-
-from .exc import PyBELDSLException, InferCentralDogmaException
+from .exc import InferCentralDogmaException
 from .utils import entity
 from ..constants import *
 from ..utils import ensure_quotes
@@ -110,6 +109,7 @@ class BelConvertable(dict, metaclass=abc.ABCMeta):
         return self._get_bel()
 
 
+@total_ordering
 class BaseEntity(BelConvertable):
     """This class represents all BEL nodes. It can be converted to a tuple and hashed."""
 
@@ -374,7 +374,6 @@ class Variant(BelConvertable):
         :param str kind: The kind of variant
         """
         super(Variant, self).__init__({KIND: kind})
-
 
     def __lt__(self, other):
         """
