@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
-"""
-Module that contains the command line app
+"""Module that contains the command line app.
 
 Why does this file exist, and why not put this in __main__?
 You might be tempted to import things from __main__ later, but that will cause
@@ -25,6 +24,7 @@ from .io import from_lines, from_url, to_csv, to_cx_file, to_graphml, to_gsea, t
 from .manager import Manager, defaults
 from .manager.database_io import from_database, to_database
 from .manager.models import Base, Edge, Namespace
+from .utils import get_version
 
 log = logging.getLogger(__name__)
 
@@ -33,9 +33,9 @@ def _page(it):
     click.echo_via_pager('\n'.join(map(str, it)))
 
 
-@click.group(help="PyBEL Command Line Utilities on {} using default connection {}".format(sys.executable,
-                                                                                          get_cache_connection()))
-@click.version_option()
+@click.group(help=f'PyBEL v{get_version()} Command Line Utilities on {sys.executable} '
+                  f'using default connection {get_cache_connection()}')
+@click.version_option(version=get_version())
 def main():
     """PyBEL Command Line """
 
@@ -55,8 +55,7 @@ def main():
 @click.option('--bel', type=click.File('w'), help='Output canonical BEL')
 @click.option('--neo', help="Connection string for neo4j upload")
 @click.option('--neo-context', help="Optional context for neo4j upload")
-@click.option('-s', '--store-default', is_flag=True,
-              help="Stores to default cache at {}".format(get_cache_connection()))
+@click.option('-s', '--store-default', is_flag=True, help=f"Stores to default cache at {get_cache_connection()}")
 @click.option('--store-connection', help="Database connection string")
 @click.option('--allow-naked-names', is_flag=True, help="Enable lenient parsing for naked names")
 @click.option('--allow-nested', is_flag=True, help="Enable lenient parsing for nested statements")
@@ -153,7 +152,7 @@ def convert(path, url, connection, database_name, csv, sif, gsea, graphml, json,
 
 
 @main.group()
-@click.option('-c', '--connection', help='Cache connection. Defaults to {}'.format(get_cache_connection()))
+@click.option('-c', '--connection', help=f'Cache connection. Defaults to {get_cache_connection()}')
 @click.pass_context
 def manage(ctx, connection):
     """Manage database"""
@@ -236,18 +235,15 @@ def insert(manager, url):
 
 @namespace.command()
 @click.option('--url', help='Specific resource URL to list')
-@click.option('-i', '--namespace-id', help='Specific resource URL to list')
+@click.option('-i', '--namespace-id', type=int, help='Specific resource URL to list')
 @click.pass_obj
 def ls(manager, url, namespace_id):
     """Lists cached namespaces"""
-    if url:
-        if url.endswith('.belns'):
-            terms = manager.ensure_namespace(url).to_values()
-        else:
-            terms = manager.get_namespace_owl_terms(url)
-        _page(terms)
+    if url is not None:
+        n = manager.get_namespace_by_url(url)
+        _page(n.entries)
 
-    elif namespace_id:
+    elif namespace_id is not None:
         n = manager.session.query(Namespace).get(namespace_id)
         _page(n.entries)
 
@@ -261,18 +257,13 @@ def ls(manager, url, namespace_id):
 @click.pass_obj
 def ls(manager, url):
     """Lists cached annotations"""
-    if not url:
-        for annotation, in manager.list_annotations():
-            click.echo(annotation.url)
+    if url is not None:
+        annotation = manager.get_annotation_by_url(url)
+        _page(annotation.entries)
 
     else:
-        if url.endswith('.belanno'):
-            annotation = manager.ensure_annotation(url)
-        else:
-            annotation = manager.ensure_annotation_owl(url)
-
-        for l in annotation.get_entries():
-            click.echo(l)
+        for annotation in manager.list_annotations():
+            click.echo('\t'.join(map(str, (annotation.id, annotation.keyword, annotation.version, annotation.url))))
 
 
 @namespace.command()
