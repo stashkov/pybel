@@ -10,7 +10,7 @@ from .bel_keywords import *
 log = getLogger(__name__)
 
 #: The last PyBEL version where the graph data definition changed
-PYBEL_MINIMUM_IMPORT_VERSION = 0, 11, 0
+PYBEL_MINIMUM_IMPORT_VERSION = 0, 12, 0
 
 BELFRAMEWORK_DOMAIN = 'http://resource.belframework.org'
 OPENBEL_DOMAIN = 'http://resources.openbel.org'
@@ -27,7 +27,7 @@ GOCC_LATEST = 'https://arty.scai.fraunhofer.de/artifactory/bel/namespace/go-cell
 GOCC_KEYWORD = 'GOCC'
 
 #: The environment variable that contains the default SQL connection information for the PyBEL cache
-PYBEL_CONNECTION = 'PYBEL_CONNECTION'
+PYBEL_CONNECTION = 'PYBEL_12_CONNECTION'
 
 #: The default directory where PyBEL files, including logs and the  default cache, are stored. Created if not exists.
 PYBEL_DIR = environ.get('PYBEL_RESOURCE_DIRECTORY', path.join(path.expanduser('~'), '.pybel'))
