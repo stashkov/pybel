@@ -100,14 +100,34 @@ annotation_hierarchy = Table(
 
 
 class Namespace(Base):
-    """Represents a BEL Namespace"""
+    """Represents a BEL Namespace.
+
+    Example:
+
+    .. code-block:: python
+
+        hgnc_namespace = Namespace(
+            miriam_id='MIR:00000080',
+            name='HGNC',
+            keyword='hgnc',
+            description='The HGNC (HUGO Gene Nomenclature Committee) provides an approved gene name and symbol (short-form abbreviation) for each known human gene. All approved symbols are stored in the HGNC database, and each symbol is unique. HGNC identifiers refer to records in the HGNC symbol database.',
+            uri='http://identifiers.org/hgnc/',
+        )
+    """
     __tablename__ = NAMESPACE_TABLE_NAME
 
     id = Column(Integer, primary_key=True)
 
-    uploaded = Column(DateTime, nullable=False, default=datetime.datetime.utcnow, doc='The date of upload')
+    uploaded = Column(DateTime, nullable=False, default=datetime.datetime.utcnow, doc='The date of upload to PyBEL')
+
+    miriam_id = Column(String(32), nullable=True, index=True, doc='MIRIAM identifier of this namespace')
     keyword = Column(String(16), nullable=True, index=True,
-                     doc='Keyword that is used in a BEL file to identify a specific namespace')
+                     doc='Keyword that is used in a BEL file to identify a specific namespace. Should correspond to Identifiers.org "Namespace" field.')
+    name = Column(String(255), nullable=True,
+                  doc='Name of the given namespace. Should correspond to Identifiers.org "Name" field')
+    domain = Column(String(255), nullable=True,
+                    doc='Domain for which this namespace is valid. Corresponds to identifiers.org "Definition" field.')
+
 
     # A namespace either needs a URL or a pattern
     pattern = Column(String(255), nullable=True, unique=True, index=True,
@@ -115,8 +135,6 @@ class Namespace(Base):
 
     url = Column(String(255), nullable=True, unique=True, index=True, doc='BELNS Resource location as URL')
 
-    name = Column(String(255), nullable=True, doc='Name of the given namespace')
-    domain = Column(String(255), nullable=True, doc='Domain for which this namespace is valid')
     species = Column(String(255), nullable=True, doc='Taxonomy identifiers for which this namespace is valid')
     description = Column(Text, nullable=True, doc='Optional short description of the namespace')
     version = Column(String(255), nullable=True, doc='Version of the namespace')
@@ -186,6 +204,15 @@ class Namespace(Base):
 class NamespaceEntry(Base):
     """Represents a name within a BEL namespace"""
     __tablename__ = NAMESPACE_ENTRY_TABLE_NAME
+
+    def __init__(self, name=None, identifier=None, encoding=None, namespace=None):
+        if name is None and identifier is None:
+            raise ValueError('can not make namespace entry with neither a name nor identifier')
+
+        self.name = name
+        self.identifier = identifier
+        self.encoding = encoding
+        self.namespace = namespace
 
     id = Column(Integer, primary_key=True)
 
