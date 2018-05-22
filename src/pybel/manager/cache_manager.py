@@ -251,15 +251,15 @@ class NamespaceManager(BaseManager):
             url=url,
             **namespace_insert_values
         )
-        namespace.entries = [
-            NamespaceEntry(name=name, encoding=encoding)
-            for name, encoding in values.items()
-        ]
-
-        log.info('inserted namespace: %s (%d terms in %.2f seconds)', url, len(values), time.time() - t)
-
         self.session.add(namespace)
+        self.session.add_all([
+            NamespaceEntry(name=name, encoding=encoding, namespace=namespace)
+            for name, encoding in values.items()
+        ])
+
+        log.debug('committing namespace')
         self.session.commit()
+        log.info('inserted namespace: %s (%d terms in %.2f seconds)', url, len(values), time.time() - t)
 
         return namespace
 
