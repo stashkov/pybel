@@ -205,15 +205,6 @@ class NamespaceEntry(Base):
     """Represents a name within a BEL namespace"""
     __tablename__ = NAMESPACE_ENTRY_TABLE_NAME
 
-    def __init__(self, name=None, identifier=None, encoding=None, namespace=None):
-        if name is None and identifier is None:
-            raise ValueError('can not make namespace entry with neither a name nor identifier')
-
-        self.name = name
-        self.identifier = identifier
-        self.encoding = encoding
-        self.namespace = namespace
-
     id = Column(Integer, primary_key=True)
 
     name = Column(String(1023), index=True, nullable=False,
