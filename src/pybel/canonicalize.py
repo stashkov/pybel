@@ -5,10 +5,11 @@
 from __future__ import print_function
 
 import itertools as itt
+
 import logging
 
 from .constants import *
-from .dsl.nodes import BaseEntity, FusionRangeBase, Variant
+from .dsl.nodes import BaseEntity
 from .resources.document import make_knowledge_header
 from .utils import ensure_quotes
 
@@ -41,46 +42,6 @@ def postpend_location(bel_string, location_model):
         location_model[NAMESPACE],
         ensure_quotes(location_model[NAME])
     )
-
-
-def _get_variant_name(tokens):
-    if tokens[IDENTIFIER][NAMESPACE] == BEL_DEFAULT_NAMESPACE:
-        return tokens[IDENTIFIER][NAME]
-    else:
-        return '{}:{}'.format(tokens[IDENTIFIER][NAMESPACE], ensure_quotes(tokens[IDENTIFIER][NAME]))
-
-
-def _get_fragment_range_str(tokens):
-    if FRAGMENT_MISSING in tokens:
-        return '?'
-    else:
-        return '{}_{}'.format(tokens[FRAGMENT_START], tokens[FRAGMENT_STOP])
-
-
-def variant_to_bel(tokens):  # Replace with class-method of different Variant instances
-    """Canonicalizes the variant dictionary produced by one of :func:`pybel.dsl.hgvs`, :func:`pybel.dsl.fragment`,
-    :func:`pybel.dsl.pmod`, or :func:`pybel.dsl.gmod`.
-
-    :param dict tokens: A variant data dictionary
-    :rtype: str
-    """
-
-    if isinstance(tokens, Variant):
-        return tokens.as_bel()
-
-    raise RuntimeError('should be using DSL')
-
-
-def fusion_range_to_bel(tokens):
-    """
-
-    :param tokens:
-    :rtype: str
-    """
-    if isinstance(tokens, FusionRangeBase):
-        return tokens.as_bel()
-
-    raise RuntimeError('should be using DSL')
 
 
 def _decanonicalize_edge_node(node, edge_data, node_position):

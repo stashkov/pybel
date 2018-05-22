@@ -3,9 +3,9 @@
 """This module tests the DSL"""
 
 import itertools as itt
+
 import unittest
 
-from pybel.canonicalize import fusion_range_to_bel, variant_to_bel
 from pybel.constants import (
     ABUNDANCE, BEL_DEFAULT_NAMESPACE, BIOPROCESS, COMPLEX, COMPOSITE, FRAGMENT, FUNCTION, GENE, IDENTIFIER, NAME,
     NAMESPACE, PATHOLOGY, PMOD, PROTEIN, REACTION, RNA,
@@ -20,6 +20,14 @@ from pybel.dsl.exc import InferCentralDogmaException, PyBELDSLException
 from pybel.dsl.utils import entity
 from pybel.utils import ensure_quotes
 from tests.utils import n
+
+
+def variant_to_bel(tokens):
+    return tokens.as_bel()
+
+
+def fusion_range_to_bel(tokens):
+    return tokens.as_bel()
 
 
 class TestDSL(unittest.TestCase):
@@ -158,10 +166,6 @@ class TestSort(unittest.TestCase):
 
 
 class TestCanonicalize(unittest.TestCase):
-    def test_variant_to_bel_key_error(self):
-        with self.assertRaises(Exception):
-            variant_to_bel({})
-
     def test_entity_dsl_error(self):
         """"""
         with self.assertRaises(PyBELDSLException):
