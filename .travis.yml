@@ -13,8 +13,8 @@ python:
 
 env:
   - TOXENV=py DB=mysql
-    PYBEL_TEST_CONNECTOR=pymysql
-    PYBEL_TEST_CONNECTION=mysql+pymysql://travis@localhost/test?charset=utf8
+    PYBEL_TEST_CONNECTOR=mysqlclient
+    PYBEL_TEST_CONNECTION=mysql+mysqldb://travis@localhost/test?charset=utf8
 
   - TOXENV=py DB=postgres
     PYBEL_TEST_CONNECTOR=psycopg2
