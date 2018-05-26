@@ -3,13 +3,9 @@
 """This module holds the mocks used in testing"""
 
 import os
+from unittest import mock
 
 from pybel.constants import GOCC_LATEST
-
-try:
-    from unittest import mock
-except ImportError:
-    import mock
 from tests.constants import bel_dir_path, belanno_dir_path, belns_dir_path, get_uri_name
 
 

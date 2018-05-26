@@ -40,7 +40,6 @@ EXTRAS_REQUIRE = {
     'neo4j': ['py2neo'],
 }
 TESTS_REQUIRE = [
-    'mock',
     'pathlib',
 ]
 ENTRY_POINTS = {
