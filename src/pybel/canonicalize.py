@@ -200,10 +200,8 @@ def _to_bel_lines_header(graph):
 
     return make_knowledge_header(
         namespace_url=graph.namespace_url,
-        namespace_owl=graph.namespace_owl,
         namespace_patterns=graph.namespace_pattern,
         annotation_url=graph.annotation_url,
-        annotation_owl=graph.annotation_owl,
         annotation_patterns=graph.annotation_pattern,
         annotation_list=graph.annotation_list,
         **graph.document

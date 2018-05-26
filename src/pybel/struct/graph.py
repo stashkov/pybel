@@ -28,10 +28,8 @@ log = logging.getLogger(__name__)
 
 RESOURCE_DICTIONARY_NAMES = (
     GRAPH_NAMESPACE_URL,
-    GRAPH_NAMESPACE_OWL,
     GRAPH_NAMESPACE_PATTERN,
     GRAPH_ANNOTATION_URL,
-    GRAPH_ANNOTATION_OWL,
     GRAPH_ANNOTATION_PATTERN,
     GRAPH_ANNOTATION_LIST,
 )
@@ -240,15 +238,6 @@ class BELGraph(nx.MultiDiGraph):
         return self.graph[GRAPH_NAMESPACE_URL]
 
     @property
-    def namespace_owl(self):
-        """A dictionary mapping the keywords used to create this graph to the URLs of the OWL files from the
-        ``DEFINE NAMESPACE [key] AS OWL "[value]"`` entries in the definitions section
-
-        :rtype: dict[str,str]
-        """
-        return self.graph[GRAPH_NAMESPACE_OWL]
-
-    @property
     def defined_namespace_keywords(self):
         """Returns the set of all keywords defined as namespaces in this graph
 
@@ -256,8 +245,7 @@ class BELGraph(nx.MultiDiGraph):
         """
         return (
                 set(self.namespace_pattern) |
-                set(self.namespace_url) |
-                set(self.namespace_owl)
+                set(self.namespace_url)
         )
 
     @property
@@ -288,15 +276,6 @@ class BELGraph(nx.MultiDiGraph):
         return self.graph[GRAPH_ANNOTATION_URL]
 
     @property
-    def annotation_owl(self):
-        """A dictionary mapping the annotation keywords used to creat ethis graph to the URLs of the OWL files
-        from the ``DEFINE ANNOTATION [key] AS OWL "[value]"`` entries in the definitions section
-
-        :rtype: dict[str,str]
-        """
-        return self.graph[GRAPH_ANNOTATION_OWL]
-
-    @property
     def annotation_pattern(self):
         """A dictionary mapping the annotation keywords used to create this graph to their regex patterns
         from the ``DEFINE ANNOTATION [key] AS PATTERN "[value]"`` entries in the definitions section
@@ -323,7 +302,6 @@ class BELGraph(nx.MultiDiGraph):
         return (
                 set(self.annotation_pattern) |
                 set(self.annotation_url) |
-                set(self.annotation_owl) |
                 set(self.annotation_list)
         )
 
@@ -893,11 +871,9 @@ def _left_full_metadata_join(g, h):
     """
     g.namespace_url.update(h.namespace_url)
     g.namespace_pattern.update(h.namespace_pattern)
-    g.namespace_owl.update(h.namespace_owl)
 
     g.annotation_url.update(h.annotation_url)
     g.annotation_pattern.update(h.annotation_pattern)
-    g.annotation_owl.update(h.annotation_owl)
 
     for keyword, values in h.annotation_list.items():
         if keyword not in g.annotation_list:

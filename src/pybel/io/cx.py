@@ -225,17 +225,11 @@ def to_cx(graph):
     for key in graph.namespace_url:
         context_legend[key] = GRAPH_NAMESPACE_URL
 
-    for key in graph.namespace_owl:
-        context_legend[key] = GRAPH_NAMESPACE_OWL
-
     for key in graph.namespace_pattern:
         context_legend[key] = GRAPH_NAMESPACE_PATTERN
 
     for key in graph.annotation_url:
         context_legend[key] = GRAPH_ANNOTATION_URL
-
-    for key in graph.annotation_owl:
-        context_legend[key] = GRAPH_ANNOTATION_OWL
 
     for key in graph.annotation_pattern:
         context_legend[key] = GRAPH_ANNOTATION_PATTERN
@@ -262,10 +256,8 @@ def to_cx(graph):
     context_entry_dict = {}
     context_entry_dict.update(graph.namespace_url)
     context_entry_dict.update(graph.namespace_pattern)
-    context_entry_dict.update(graph.namespace_owl)
     context_entry_dict.update(graph.annotation_url)
     context_entry_dict.update(graph.annotation_pattern)
-    context_entry_dict.update(graph.annotation_owl)
     context_entry_dict.update(annotation_list_keys_lookup)
     context_entry_dict.update(graph.namespace_url)
     context_aspect = [context_entry_dict]
@@ -423,14 +415,10 @@ def from_cx(cx):
     for keyword, entry in context_aspect.items():
         if context_legend[keyword] == GRAPH_NAMESPACE_URL:
             graph.namespace_url[keyword] = entry
-        elif context_legend[keyword] == GRAPH_NAMESPACE_OWL:
-            graph.namespace_owl[keyword] = entry
         elif context_legend[keyword] == GRAPH_NAMESPACE_PATTERN:
             graph.namespace_pattern[keyword] = entry
         elif context_legend[keyword] == GRAPH_ANNOTATION_URL:
             graph.annotation_url[keyword] = entry
-        elif context_legend[keyword] == GRAPH_ANNOTATION_OWL:
-            graph.annotation_owl[keyword] = entry
         elif context_legend[keyword] == GRAPH_ANNOTATION_PATTERN:
             graph.annotation_pattern[keyword] = entry
         elif context_legend[keyword] == GRAPH_ANNOTATION_LIST:

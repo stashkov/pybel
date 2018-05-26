@@ -216,10 +216,7 @@ def ensure(manager, debug):
 @click.pass_obj
 def insert(manager, url):
     """Manually add namespace by URL"""
-    if url.endswith('.belns'):
-        manager.ensure_namespace(url)
-    else:
-        manager.ensure_namespace_owl(url)
+    manager.ensure_namespace(url)
 
 
 @annotations.command()
@@ -227,10 +224,7 @@ def insert(manager, url):
 @click.pass_obj
 def insert(manager, url):
     """Manually add annotation by URL"""
-    if url.endswith('.belanno'):
-        manager.ensure_annotation(url)
-    else:
-        manager.ensure_annotation_owl(url)
+    manager.ensure_annotation(url)
 
 
 @namespace.command()
