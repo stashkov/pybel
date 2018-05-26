@@ -43,7 +43,6 @@ resources_dir_path = os.path.join(dir_path, 'resources')
 bel_dir_path = os.path.join(resources_dir_path, 'bel')
 belns_dir_path = os.path.join(resources_dir_path, 'belns')
 belanno_dir_path = os.path.join(resources_dir_path, 'belanno')
-beleq_dir_path = os.path.join(resources_dir_path, 'beleq')
 
 test_bel_simple = os.path.join(bel_dir_path, 'test_bel.bel')
 test_bel_slushy = os.path.join(bel_dir_path, 'slushy.bel')
@@ -60,9 +59,6 @@ test_ns_nocache = os.path.join(belns_dir_path, 'test_nocache.belns')
 test_ns_empty = os.path.join(belns_dir_path, 'test_ns_empty.belns')
 
 test_ns_nocache_path = Path(test_ns_nocache).as_uri()
-
-test_eq_1 = os.path.join(beleq_dir_path, 'disease-ontology.beleq')
-test_eq_2 = os.path.join(beleq_dir_path, 'mesh-diseases.beleq')
 
 test_citation_dict = {
     CITATION_TYPE: 'PubMed',

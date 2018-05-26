@@ -4,17 +4,13 @@ import os
 from pathlib import Path
 
 from pybel.manager import Manager
-from tests.constants import (
-    CELL_LINE_URL, HGNC_URL, TemporaryCacheClsMixin, belns_dir_path, test_eq_1, test_eq_2, test_ns_nocache_path,
-)
+from tests.constants import CELL_LINE_URL, HGNC_URL, TemporaryCacheClsMixin, belns_dir_path, test_ns_nocache_path
 from tests.mocks import mock_bel_resources
 
 ns1 = Path(os.path.join(belns_dir_path, 'disease-ontology.belns')).as_uri()
-ns1_eq = Path(test_eq_1).as_uri()
 ns1_url = 'http://resources.openbel.org/belframework/20150611/namespace/disease-ontology-ids.belns'
 
 ns2 = Path(os.path.join(belns_dir_path, 'mesh-diseases.belns')).as_uri()
-ns2_eq = Path(test_eq_2).as_uri()
 ns2_url = 'http://resources.openbel.org/belframework/20150611/namespace/mesh-diseases.belns'
 
 
