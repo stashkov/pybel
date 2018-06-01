@@ -4,7 +4,6 @@
 
 import logging
 import os
-
 import requests
 
 from .nodelink import from_json, to_json
@@ -20,7 +19,8 @@ __all__ = [
 
 log = logging.getLogger(__name__)
 
-RECIEVE_ENDPOINT = '/api/receive'
+RECIEVE_ENDPOINT = '/api/receive/'
+METADATA_ENDPOINT = '/api/receive/get_latest_network_version'
 GET_ENDPOINT = '/api/network/{}/export/nodelink'
 
 
@@ -61,21 +61,7 @@ def to_web(graph, host=None, user=None, password=None):
     :return: The response object from :mod:`requests`
     :rtype: requests.Response
     """
-    if host is None:
-        host = _get_host()
-        log.debug('using host: %s', host)
-
-    if user is None:
-        user = _get_user()
-
-        if user is None:
-            raise ValueError('no user found')
-
-    if password is None:
-        password = _get_password()
-
-        if password is None:
-            raise ValueError('no password found')
+    host, user, password = _get_cred(host, user, password)
 
     url = host + RECIEVE_ENDPOINT
 
@@ -89,6 +75,26 @@ def to_web(graph, host=None, user=None, password=None):
         auth=(user, password)
     )
     log.debug('received response: %s', response)
+
+    return response
+
+
+def _get_latest_metadata_by_name(name, host=None, user=None, password=None):
+    host, user, password = _get_cred(host, user, password)
+
+    url = host + RECIEVE_ENDPOINT
+
+    response = requests.post(
+        url,
+        json={
+            'name': name
+        },
+        headers={
+            'content-type': 'application/json',
+            'User-Agent': 'PyBEL v{}'.format(VERSION),
+        },
+        auth=(user, password)
+    )
 
     return response
 
@@ -111,3 +117,23 @@ def from_web(network_id, host=None):
     graph_json = res.json()
     graph = from_json(graph_json)
     return graph
+
+
+def _get_cred(host=None, user=None, password=None):
+    if host is None:
+        host = _get_host()
+        log.debug('using host: %s', host)
+
+    if user is None:
+        user = _get_user()
+
+        if user is None:
+            raise ValueError('no user found')
+
+    if password is None:
+        password = _get_password()
+
+        if password is None:
+            raise ValueError('no password found')
+
+    return host, user, password
