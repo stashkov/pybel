@@ -258,18 +258,18 @@ def _simple_to_tuple(tokens):
     :type tokens: ParseResult or dict
     :rtype: tuple
     """
-    if NAME in tokens:
-        return (
-            tokens[FUNCTION],
-            tokens[NAMESPACE],
-            tokens[NAME]
-        )
-
     if IDENTIFIER in tokens:
         return (
             tokens[FUNCTION],
             tokens[NAMESPACE],
             tokens[IDENTIFIER]
+        )
+
+    if NAME in tokens:
+        return (
+            tokens[FUNCTION],
+            tokens[NAMESPACE],
+            tokens[NAME]
         )
 
     raise PyBELCanonicalizeError('missing name and identifier in node data dict: {}'.format(tokens))

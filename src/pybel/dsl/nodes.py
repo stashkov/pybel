@@ -132,7 +132,7 @@ class BaseAbundance(BaseEntity):
 
     @property
     def _priority_id(self):
-        return self.name or self.identifier
+        return self.identifier or self.name
 
     def as_tuple(self):
         """Return this node as a PyBEL node tuple.

@@ -9,12 +9,12 @@ enable this option, but can specify a database location if they choose.
 from __future__ import unicode_literals
 
 import logging
+import time
 from collections import defaultdict
 from copy import deepcopy
+from itertools import chain
 
 import six
-import time
-from itertools import chain
 from six import string_types
 from sqlalchemy import and_, exists, func
 from sqlalchemy.orm import aliased
@@ -381,6 +381,16 @@ class NamespaceManager(BaseManager):
             log.warning('result for get_namespace_entry is too long. Returning first of %s', [str(r) for r in result])
 
         return result[0]
+
+    def get_namespace_entry_by_identifier(self, url, identifier):
+        """
+
+        :param str url: The url of the namespace source
+        :param str identifier: The identifier for the term
+        :rtype: Optional[NamespaceEntry]
+        """
+        entry_filter = and_(Namespace.url == url, NamespaceEntry.identifier == identifier)
+        return self.session.query(NamespaceEntry).join(Namespace).filter(entry_filter).one_or_none()
 
     def get_or_create_regex_namespace_entry(self, namespace, pattern, name):
         """Gets a namespace entry from a regular expression. Need to commit after!
@@ -1147,8 +1157,16 @@ class InsertManager(NamespaceManager, AnnotationManager, LookupManager):
 
         elif namespace in graph.namespace_url:
             url = graph.namespace_url[namespace]
-            name = node_data[NAME]
-            entry = self.get_namespace_entry(url, name)
+
+            identifier = node_data.get(IDENTIFIER)
+            name = node_data.get(NAME)
+            if identifier:
+                entry = self.get_namespace_entry_by_identifier(url, identifier)
+            elif name:
+                name = node_data[NAME]
+                entry = self.get_namespace_entry(url, name)
+            else:
+                raise ValueError('node has neither a name nor an identifier: {}'.format(node_data))
 
             if entry is None:
                 log.debug('skipping node with identifier %s: %s', url, name)
